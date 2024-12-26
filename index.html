@@ -52,11 +52,16 @@ copies or substantial portions of the Software. -->
         <div id="chart-humidity" class="box"></div>
         <div id="chart-pressure" class="box"></div>
     </div>
+    <div class="container">
+        <div id="chart-temperature" class="box"></div>
+        <div id="chart-humidity" class="box"></div>
+        <div id="chart-pressure" class="box"></div>
+    </div>
 </body>
 <script>
     var chartT = new Highcharts.Chart({
         chart: { renderTo: 'chart-temperature' },
-        title: { text: 'BME280 Temperature' },
+        title: { text: 'Input Voltage' },
         series: [{
             showInLegend: false,
             data: []
@@ -85,7 +90,7 @@ copies or substantial portions of the Software. -->
                 var x = (new Date()).getTime(),
                     y = parseFloat(this.responseText);
                 //console.log(this.responseText);
-                if (chartT.series[0].data.length > 40) {
+                if (chartT.series[0].data.length > 10) {
                     chartT.series[0].addPoint([x, y], true, true, true);
                 } else {
                     chartT.series[0].addPoint([x, y], true, false, true);
@@ -94,11 +99,11 @@ copies or substantial portions of the Software. -->
         };
         xhttp.open("GET", "/temperature", true);
         xhttp.send();
-    }, 300);
+    }, 1000);
 
     var chartH = new Highcharts.Chart({
         chart: { renderTo: 'chart-humidity' },
-        title: { text: 'BME280 Humidity' },
+        title: { text: 'Motor Temperature' },
         series: [{
             showInLegend: false,
             data: []
@@ -125,7 +130,7 @@ copies or substantial portions of the Software. -->
                 var x = (new Date()).getTime(),
                     y = parseFloat(this.responseText);
                 //console.log(this.responseText);
-                if (chartH.series[0].data.length > 40) {
+                if (chartH.series[0].data.length > 10) {
                     chartH.series[0].addPoint([x, y], true, true, true);
                 } else {
                     chartH.series[0].addPoint([x, y], true, false, true);
@@ -134,11 +139,11 @@ copies or substantial portions of the Software. -->
         };
         xhttp.open("GET", "/humidity", true);
         xhttp.send();
-    }, 300);
+    }, 1000);
 
     var chartP = new Highcharts.Chart({
         chart: { renderTo: 'chart-pressure' },
-        title: { text: 'BME280 Pressure' },
+        title: { text: 'Inverter Temperature' },
         series: [{
             showInLegend: false,
             data: []
@@ -166,7 +171,7 @@ copies or substantial portions of the Software. -->
                 var x = (new Date()).getTime(),
                     y = parseFloat(this.responseText);
                 //console.log(this.responseText);
-                if (chartP.series[0].data.length > 40) {
+                if (chartP.series[0].data.length > 10) {
                     chartP.series[0].addPoint([x, y], true, true, true);
                 } else {
                     chartP.series[0].addPoint([x, y], true, false, true);
@@ -175,7 +180,7 @@ copies or substantial portions of the Software. -->
         };
         xhttp.open("GET", "/pressure", true);
         xhttp.send();
-    }, 300);
+    }, 1000);
 </script>
 
 </html>
