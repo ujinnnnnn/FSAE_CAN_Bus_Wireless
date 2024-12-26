@@ -14,4 +14,6 @@
 #define CAN_RX_PIN (GPIO_NUM_2)
 
 
+#define DATA_OFFSET_BITS 3
+#define CRC_LENGTH_BYTES 2
 #endif // config.h

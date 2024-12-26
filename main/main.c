@@ -91,13 +91,67 @@ int8_t Thermistor_data[TEM_MAX_THERMISTORS] = {0};
 
 can_CellData_t Cell_data[120] = {0};
 
+
+//uint16_t		crc_16(             const unsigned char *input_str, size_t num_bytes       );
+
+void pack_and_send_message_1(uint8_t * lora_tx_buffer){
+  uint8_t message_id = 1;
+
+  memcpy((void *) &lora_tx_buffer[1],(void *) &message_id,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 0], (void *) &Inv_data.inverter_temp,4);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 4], (void *) &Inv_data.motor_temp,4);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 8], (void *) &BMS_data.MaxCellVoltage,4);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 12], (void *) &Inv_data.input_voltage,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 14], (void *) &BMS_data.PackAbsCurrent,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 16], (void *) &BMS_data.AverageCurrent,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 18], (void *) &BMS_data.MaxPackVoltage,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 20], (void *) &Inv_data.FAULT_CODE,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 21], (void *) &BMS_data.PackSOC,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 22], (void *) &BMS_data.HighTemperature,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 23], (void *) &BMS_data.InternalTemperature,1);
+
+#define MESSAGE_1_DATA_BYTES 24
+
+  uint16_t crc = crc_16((unsigned char *) &lora_tx_buffer[DATA_OFFSET_BITS],MESSAGE_1_DATA_BYTES);
+
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + MESSAGE_1_DATA_BYTES],(void *) &crc,2);
+
+  lora_tx_buffer[DATA_OFFSET_BITS + MESSAGE_1_DATA_BYTES + CRC_LENGTH_BYTES - 1] = '#';
+
+  uart_write_bytes(UART_NUM_1,lora_tx_buffer,DATA_OFFSET_BITS + DATA_OFFSET_BITS + MESSAGE_1_DATA_BYTES + CRC_LENGTH_BYTES);
+}
+
+void pack_and_send_message_2(uint8_t * lora_tx_buffer){
+  uint8_t message_id = 2;
+
+  memcpy((void *) &lora_tx_buffer[1],(void *) &message_id,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 0], (void *) &Inv_data.inverter_temp,4);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 4], (void *) &Inv_data.motor_temp,4);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 8], (void *) &BMS_data.MaxCellVoltage,4);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 12], (void *) &Inv_data.input_voltage,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 14], (void *) &BMS_data.PackAbsCurrent,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 16], (void *) &BMS_data.AverageCurrent,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 18], (void *) &BMS_data.MaxPackVoltage,2);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 20], (void *) &Inv_data.FAULT_CODE,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 21], (void *) &BMS_data.PackSOC,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 22], (void *) &BMS_data.HighTemperature,1);
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 23], (void *) &BMS_data.InternalTemperature,1);
+
+#define MESSAGE_2_DATA_BYTES 24
+
+  uint16_t crc = crc_16((unsigned char *) &lora_tx_buffer[DATA_OFFSET_BITS],MESSAGE_2_DATA_BYTES);
+
+  memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + MESSAGE_2_DATA_BYTES],(void *) &crc,2);
+
+  lora_tx_buffer[DATA_OFFSET_BITS + MESSAGE_2_DATA_BYTES + CRC_LENGTH_BYTES - 1] = '#';
+
+  uart_write_bytes(UART_NUM_1,lora_tx_buffer,DATA_OFFSET_BITS + DATA_OFFSET_BITS + MESSAGE_2_DATA_BYTES + CRC_LENGTH_BYTES);
+}
+
 static void lora_transmit_task(void *arg){
   uint8_t lora_tx_buffer[2 * LORA_PACKET_SIZE_BYTES ] = {0} ;
   lora_tx_buffer[0] = '$';
-  lora_tx_buffer[LORA_PACKET_SIZE_BYTES - 1] = '#';
-  int message_id = 1234;
 
-  memcpy((void *) &lora_tx_buffer[1],(void *) &message_id,4);
 
   Inv_data.inverter_temp = 34;
   Inv_data.motor_temp = 23;
@@ -113,22 +167,13 @@ static void lora_transmit_task(void *arg){
 
 
 
-#define DATA_OFFSET_BITS 5
   while(1){
     vTaskDelay(pdMS_TO_TICKS(LORA_TRANSMIT_PERIOD_MS));
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 0], (void *) &Inv_data.inverter_temp,4);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 4], (void *) &Inv_data.motor_temp,4);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 8], (void *) &BMS_data.MaxCellVoltage,4);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 12], (void *) &Inv_data.input_voltage,2);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 14], (void *) &BMS_data.PackAbsCurrent,2);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 16], (void *) &BMS_data.AverageCurrent,2);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 18], (void *) &BMS_data.MaxPackVoltage,2);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 20], (void *) &Inv_data.FAULT_CODE,1);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 21], (void *) &BMS_data.PackSOC,1);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 22], (void *) &BMS_data.HighTemperature,1);
-    memcpy((void*) &lora_tx_buffer[DATA_OFFSET_BITS + 23], (void *) &BMS_data.InternalTemperature,1);
+    pack_message_1(lora_tx_buffer);
+    uart_write_bytes(UART_NUM_1,lora_tx_buffer,DATA_OFFSET_BITS + 25);
 
-    lora_tx_buffer[DATA_OFFSET_BITS + 24] = '#';
+    vTaskDelay(pdMS_TO_TICKS(LORA_TRANSMIT_PERIOD_MS));
+    //pack_message_2(lora_tx_buffer);
     uart_write_bytes(UART_NUM_1,lora_tx_buffer,DATA_OFFSET_BITS + 25);
   }
 }
