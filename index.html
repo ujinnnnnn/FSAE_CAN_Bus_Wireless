@@ -1,46 +1,181 @@
-<!DOCTYPE html>
+<!DOCTYPE HTML>
 <html>
-    <head>
-        <title>Raspberry pi monitor</title>
-        <meta charset="UTF-8">
-        <script src="smoothie.js"></script>
-        <script type="text/javascript" >
+<!-- Rui Santos - Complete project details at https://RandomNerdTutorials.com
 
-            function init() {
-                var tempdataset = new TimeSeries()
-                var templine = new SmoothieChart({ fps: 30, millisPerPixel: 200, grid: { strokeStyle: '#555555', lineWidth: 3, millisPerLine: 5000, verticalSections: 4}, tooltip: true});
-                templine.addTimeSeries(tempdataset);
-                templine.streamTo(document.getElementById('pitempchart'), 1000);
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software. -->
 
-                if (!!window.EventSource) {
-                    var esource = new EventSource('ssupdates.html');
-                    esource.addEventListener('message', function(e) {
-                        var newinfo=JSON.parse(e.data);
-                        tempdataset.append(Date.now(),newinfo, newinfo)
-                    }, false);
-                    esource.addEventListener('open', function(e) {
-                        var tempel = document.getElementById("note");
-                        tempel.innerHTML="update Connection established"
-                    }, false);
-                    esource.addEventListener('error', function(e) {
-                        if (e.readyState == EventSource.CLOSED) {
-                            var tempel = document.getElementById("note");
-                            tempel.innerHTML="update connection lost"
-                        }
-                    }, false);
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+    <script src="highcharts.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box; /* Ensures padding doesn't exceed width */
+        }
+        body {
+            min-width: 310px;
+            max-width: 800px;
+            height: 400px;
+            margin: 0 auto;
+        }
 
+        h2 {
+            font-family: Arial;
+            font-size: 2.5rem;
+            text-align: center;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            margin: 0;
+        }
+
+        .box {
+            flex :1;
+            width: 100%;
+            background-color: lightblue;
+            text-align: center;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="chart-temperature" class="box"></div>
+        <div id="chart-humidity" class="box"></div>
+        <div id="chart-pressure" class="box"></div>
+    </div>
+</body>
+<script>
+    var chartT = new Highcharts.Chart({
+        chart: { renderTo: 'chart-temperature' },
+        title: { text: 'BME280 Temperature' },
+        series: [{
+            showInLegend: false,
+            data: []
+        }],
+        plotOptions: {
+            line: {
+                animation: false,
+                dataLabels: { enabled: true }
+            },
+            series: { color: '#059e8a' }
+        },
+        xAxis: {
+            type: 'datetime',
+            dateTimeLabelFormats: { second: '%H:%M:%S' }
+        },
+        yAxis: {
+            title: { text: 'Temperature (Celsius)' }
+            //title: { text: 'Temperature (Fahrenheit)' }
+        },
+        credits: { enabled: false }
+    });
+    setInterval(function () {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var x = (new Date()).getTime(),
+                    y = parseFloat(this.responseText);
+                //console.log(this.responseText);
+                if (chartT.series[0].data.length > 40) {
+                    chartT.series[0].addPoint([x, y], true, true, true);
                 } else {
-                    var tempel = document.getElementById("note");
-                    tempel.innerHTML="I'm sorry Dave, live updates not supported by this browser"
+                    chartT.series[0].addPoint([x, y], true, false, true);
                 }
             }
-        
-            
-        </script>
-    </head>
-    <body onload="init()">
-          <h1>This is your Raspberry pi</h1>
-          <p id="note">blank</p>
-          <canvas id="pitempchart" width="400" height="100"></canvas>
-    </body>
+        };
+        xhttp.open("GET", "/temperature", true);
+        xhttp.send();
+    }, 300);
+
+    var chartH = new Highcharts.Chart({
+        chart: { renderTo: 'chart-humidity' },
+        title: { text: 'BME280 Humidity' },
+        series: [{
+            showInLegend: false,
+            data: []
+        }],
+        plotOptions: {
+            line: {
+                animation: false,
+                dataLabels: { enabled: true }
+            }
+        },
+        xAxis: {
+            type: 'datetime',
+            dateTimeLabelFormats: { second: '%H:%M:%S' }
+        },
+        yAxis: {
+            title: { text: 'Humidity (%)' }
+        },
+        credits: { enabled: false }
+    });
+    setInterval(function () {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var x = (new Date()).getTime(),
+                    y = parseFloat(this.responseText);
+                //console.log(this.responseText);
+                if (chartH.series[0].data.length > 40) {
+                    chartH.series[0].addPoint([x, y], true, true, true);
+                } else {
+                    chartH.series[0].addPoint([x, y], true, false, true);
+                }
+            }
+        };
+        xhttp.open("GET", "/humidity", true);
+        xhttp.send();
+    }, 300);
+
+    var chartP = new Highcharts.Chart({
+        chart: { renderTo: 'chart-pressure' },
+        title: { text: 'BME280 Pressure' },
+        series: [{
+            showInLegend: false,
+            data: []
+        }],
+        plotOptions: {
+            line: {
+                animation: false,
+                dataLabels: { enabled: true }
+            },
+            series: { color: '#18009c' }
+        },
+        xAxis: {
+            type: 'datetime',
+            dateTimeLabelFormats: { second: '%H:%M:%S' }
+        },
+        yAxis: {
+            title: { text: 'Pressure (hPa)' }
+        },
+        credits: { enabled: false }
+    });
+    setInterval(function () {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var x = (new Date()).getTime(),
+                    y = parseFloat(this.responseText);
+                //console.log(this.responseText);
+                if (chartP.series[0].data.length > 40) {
+                    chartP.series[0].addPoint([x, y], true, true, true);
+                } else {
+                    chartP.series[0].addPoint([x, y], true, false, true);
+                }
+            }
+        };
+        xhttp.open("GET", "/pressure", true);
+        xhttp.send();
+    }, 300);
+</script>
+
 </html>
