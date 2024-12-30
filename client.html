@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>FSAE Wireless Data</title>
+</head>
+<body>
+    <table>
+        <tr>
+            <tc>
+                <canvas id="inv_temp_chart"></canvas>
+            </tc>
+            <tc>
+                <canvas id="motor_temp_chart"></canvas>
+            </tc>
+            <tc>
+                <canvas id="motor_temp_chart"></canvas>
+            </tc>
+        </tr>
+        <tr>
+            <tc>
+                <canvas id="input_voltage_chart"></canvas>
+            </tc>
+            <tc>
+                <canvas id="average_current_chart"></canvas>
+            </tc>
+            <tc>
+                <canvas id="pack_soc_chart"></canvas>
+            </tc>
+        </tr>
+        <canvas id="bms_internal_temp_chart"></canvas>
+
+    </table>
+    
+
+    <table id="inv data table" > 
+    <caption>Inverter Data Table</caption>
+    <tr>
+        <th>Fault Code</th>
+        <th><h4 id = "fault_code"></h4></th>
+        <th>Pack SoC</th>
+        <th></th>
+    </tr>
+    <tr>
+        <th>Fault Code</th>
+        <th></th>
+        <th>Pack SoC</th>
+        <th></th>
+    </tr>
+    <tr>
+        <th>Pack Absolute Current</th>
+        <th><h4 class="data" id="pack_abs_current"></h4></th>
+        <th>Pack SoC</th>
+        <th></th>
+    </tr>
+    <tr>
+        <th>Inverter Active Limits Byte 4</th>
+        <th></th>
+        <th>Inverter Active Limits Byte 5</th>
+        <th></th>
+    </tr>
+
+    </table>
+    <table id="inv data table" > 
+    <caption>Inverter Data Table</caption>
+    <tr>
+        <th>Fault Code</th>
+        <th></th>
+        <th>Pack SoC</th>
+        <th></th>
+    </tr>
+    <tr>
+        <th>Fault Code</th>
+        <th></th>
+        <th>Pack SoC</th>
+        <th></th>
+    </tr>
+    <tr>
+        <th>Pack Absolute Current</th>
+        <th><h4 class="data" id="pack_abs_current"></h4></th>
+        <th>Pack SoC</th>
+        <th></th>
+    </tr>
+    <tr>
+        <th>Inverter Active Limits Byte 4</th>
+        <th></th>
+        <th>Inverter Active Limits Byte 5</th>
+        <th></th>
+    </tr>
+    </table>
+
+    <script src="update_chart.js"></script>
+</body>
+</html>
