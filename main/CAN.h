@@ -8,42 +8,42 @@
 #include "dbc.h"
 
 typedef struct {
-  int32_t erpm;
-  float duty_cycle;
-  int16_t input_voltage;
-  float ac_current;
-  float dc_current;
-  float inverter_temp;
-  float motor_temp;
-  uint8_t FAULT_CODE;
-  float FOC_Id;
-  float FOC_Iq;
-  int8_t throttle_in;
-  int8_t brake_in;
-  uint8_t DigitalIO;
-  uint8_t DriveEN;
-  uint8_t ActiveLimitsByte4;
-  uint8_t ActiveLimitsByte5;
-  uint8_t CAN_MapVers;  
+  int32_t erpm;               // time sensitive critical
+  float duty_cycle;           // time sensitive critical 
+  int16_t input_voltage;      // monitoring 1
+  float ac_current;           // time sensitive critical 
+  float dc_current;           // time sensitive critical
+  float inverter_temp;        // monitoring 1
+  float motor_temp;           // monitoring 1
+  uint8_t FAULT_CODE;         // time sensitive critical
+  float FOC_Id;               // monitoring 2
+  float FOC_Iq;               // monitoring 2
+  int8_t throttle_in;         // time sensitive critical
+  int8_t brake_in;            // X
+  uint8_t DigitalIO;          // monitoring 2
+  uint8_t DriveEN;            // monitoring 2
+  uint8_t ActiveLimitsByte4;  // time sensitive critical
+  uint8_t ActiveLimitsByte5;  // time sensitive critical
+  uint8_t CAN_MapVers;        // monitoring 2
 } can_DTI_HV_500_t;
 
 typedef struct {
-  uint16_t PackAbsCurrent;
-  uint16_t AverageCurrent;
-  float MaxCellVoltage;
-  float PackCCL;
-  uint16_t PackDCL;
-  uint16_t MaxPackVoltage;
-  int16_t PackCurrent;
-  uint8_t PackSOC;
-  uint8_t bitfield1;
-  uint8_t bitfield2;
-  uint8_t bitfield3;
-  uint8_t bitfield4;
-  int8_t HighTemperature;
-  int8_t InternalTemperature;
-  bool DischargeEnableInverted;
-  bool ChargerSafetyRelayFault;
+  uint16_t PackAbsCurrent;      // monitoring 1
+  uint16_t AverageCurrent;      // monitoring 1
+  float MaxCellVoltage;         // time sensitive critical
+  float PackCCL;                // monitoring 1
+  uint16_t PackDCL;             // monitoring 1
+  uint16_t MaxPackVoltage;      // monitoring 1
+  int16_t PackCurrent;          // time sensitive information
+  uint8_t PackSOC;              // monitoring 1
+  uint8_t bitfield1;            // monitoring 2
+  uint8_t bitfield2;            // monitoring 2
+  uint8_t bitfield3;            // monitoring 2
+  uint8_t bitfield4;            // monitoring 2
+  int8_t HighTemperature;       // monitoring 1
+  int8_t InternalTemperature;   // monitoring 1
+  bool DischargeEnableInverted; // monitoring 2
+  bool ChargerSafetyRelayFault; // monitoring 2
 } can_OrionBMS2_t;
 
 typedef struct {
@@ -52,7 +52,23 @@ typedef struct {
   float OpenVoltage;
 } can_CellData_t;
 
-
+typedef struct {
+  uint16_t RadiatorIN;    // monitoring 1
+  uint16_t RadiatorOut;   // monitoring 1
+  uint16_t Throttle_1;    // time sensitive critical
+  uint16_t Throttle_2;    // time sensitive critical
+  uint16_t Brake;         // time sensitive critical
+  uint16_t vBat;          // monitoring 1
+  int16_t accLong;        // time sensitive informational
+  int16_t accLat;         // time sensitive informational
+  int16_t accVert;        // time sensitive informational
+  int16_t yawRate;        // time sensitive informational
+  int16_t Pitch;          // time sensitive informational
+  int16_t Roll;           // time sensitive informational
+  uint16_t GPS_Fix;       // monitoring 2
+  uint16_t CAN1_Load;     // monitoring 2
+  uint16_t CAN1_Errors;   // monitoring 2
+} can_PLEX_t;
 
 #define GET_UINT32_LE_BYTE_(buffer, byte) (uint32_t) (buffer[byte + 3] << 3 | buffer[byte + 2] << 2 | buffer[byte + 1] << 1 | buffer[byte])
 

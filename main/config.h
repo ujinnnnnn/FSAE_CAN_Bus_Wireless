@@ -2,8 +2,31 @@
 #define CONFIG_H
 
 
-#define LORA_TRANSMIT_PERIOD_MS 2000
-#define LORA_PACKET_SIZE_BYTES 58
+/* 
+FreeRTOS Priorities
+*/
+#define TWAI_RECEIVE_PRIORITY 10
+
+#define LORA_RX_CHECK_PRIORITY 4
+
+#define LORA_SLOW_1_PRIORITY 2
+#define LORA_SLOW_2_PRIORITY 2
+#define LORA_FAST_CRITICAL_PRIORITY 9
+#define LORA_FAST_INFORMATION_PRIORITY 6
+#define LORA_CELL_VOLTAGE_PRIORITY 8
+#define LORA_THERMISTOR_PRIORITY 5
+
+#define USB_DEBUG_PRIORITY 5
+
+/*
+UART 
+*/
+#define UART_NUM UART_NUM_1
+
+/*
+GPIO
+*/
+
 #define AUX_PIN (GPIO_NUM_14)
 #define M1_PIN (GPIO_NUM_13)
 #define M0_PIN (GPIO_NUM_12)
@@ -13,7 +36,4 @@
 #define CAN_TX_PIN (GPIO_NUM_1)
 #define CAN_RX_PIN (GPIO_NUM_2)
 
-
-#define DATA_OFFSET_BITS 3
-#define CRC_LENGTH_BYTES 2
 #endif // config.h
