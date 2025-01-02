@@ -44,3 +44,14 @@ table, th, td {
   flex: 50%;
   padding: 5px;
 }
+
+.layout_1x2 {
+  width: 100%;
+
+  display: flex;
+  gap: 8px;
+}
+
+.cell_voltage {
+  font-size:xx-large;
+}
