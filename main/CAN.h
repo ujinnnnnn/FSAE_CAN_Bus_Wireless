@@ -8,87 +8,90 @@
 #include "dbc.h"
 
 typedef struct {
-  int32_t erpm;               // time sensitive critical
-  float duty_cycle;           // time sensitive critical 
-  int16_t input_voltage;      // monitoring 1
-  float ac_current;           // time sensitive critical 
-  float dc_current;           // time sensitive critical
-  float inverter_temp;        // monitoring 1
-  float motor_temp;           // monitoring 1
-  uint8_t FAULT_CODE;         // time sensitive critical
-  float FOC_Id;               // monitoring 2
-  float FOC_Iq;               // monitoring 2
-  int8_t throttle_in;         // time sensitive critical
-  int8_t brake_in;            // X
-  uint8_t DigitalIO;          // monitoring 2
-  uint8_t DriveEN;            // monitoring 2
-  uint8_t ActiveLimitsByte4;  // time sensitive critical
-  uint8_t ActiveLimitsByte5;  // time sensitive critical
-  uint8_t CAN_MapVers;        // monitoring 2
+  int32_t erpm;               
+  int16_t duty_cycle;          
+  int16_t input_voltage;      
+  int16_t ac_current;          
+  int16_t dc_current;         
+  int16_t inverter_temp;      
+  int16_t motor_temp;         
+  uint8_t FAULT_CODE;         
+  int32_t FOC_Id;             
+  int32_t FOC_Iq;             
+  int8_t throttle_in;         
+  int8_t brake_in;            
+  uint8_t DigitalIO;          
+  uint8_t DriveEN;            
+  uint8_t ActiveLimitsByte4;  
+  uint8_t ActiveLimitsByte5;  
+  uint8_t CAN_MapVers;        
 } can_DTI_HV_500_t;
 
 typedef struct {
-  uint16_t PackAbsCurrent;      // monitoring 1
-  uint16_t AverageCurrent;      // monitoring 1
-  float MaxCellVoltage;         // time sensitive critical
-  float PackCCL;                // monitoring 1
-  uint16_t PackDCL;             // monitoring 1
-  uint16_t MaxPackVoltage;      // monitoring 1
-  int16_t PackCurrent;          // time sensitive information
-  uint8_t PackSOC;              // monitoring 1
-  uint8_t bitfield1;            // monitoring 2
-  uint8_t bitfield2;            // monitoring 2
-  uint8_t bitfield3;            // monitoring 2
-  uint8_t bitfield4;            // monitoring 2
-  int8_t HighTemperature;       // monitoring 1
-  int8_t InternalTemperature;   // monitoring 1
-  bool DischargeEnableInverted; // monitoring 2
-  bool ChargerSafetyRelayFault; // monitoring 2
+  int16_t PackCurrent;        
+  int16_t AverageCurrent;      
+  uint16_t PackOpenVoltage;   
+  uint16_t PackAbsCurrent;    
+  uint16_t PackDCL;           
+  int8_t HighTemperature;     
+  uint8_t PackSOC;            
+  int8_t InternalTemperature; 
+  uint8_t HighOpenCellVoltage;
+  uint8_t HighOpenCellID;     
+  uint8_t LowOpenCellVoltage; 
+  uint8_t LowOpenCellID;      
+  uint8_t DTC_Flags_1;
+  uint8_t DTC_Flags_2;
+  bool DischargeEnableInverted; 
+  bool BalancingEnabled;
 } can_OrionBMS2_t;
 
 typedef struct {
-  float InstantVoltage;
-  float InternalResistance;
-  float OpenVoltage;
+  uint16_t InstantVoltage; 
+  uint16_t InternalResistance;
+  uint16_t OpenVoltage;
+  bool Shunted;
 } can_CellData_t;
 
 typedef struct {
-  uint16_t RadiatorIN;    // monitoring 1
-  uint16_t RadiatorOut;   // monitoring 1
-  uint16_t Throttle_1;    // time sensitive critical
-  uint16_t Throttle_2;    // time sensitive critical
-  uint16_t Brake;         // time sensitive critical
-  uint16_t vBat;          // monitoring 1
-  int16_t accLong;        // time sensitive informational
-  int16_t accLat;         // time sensitive informational
-  int16_t accVert;        // time sensitive informational
-  int16_t yawRate;        // time sensitive informational
-  int16_t Pitch;          // time sensitive informational
-  int16_t Roll;           // time sensitive informational
-  uint16_t GPS_Fix;       // monitoring 2
-  uint16_t CAN1_Load;     // monitoring 2
-  uint16_t CAN1_Errors;   // monitoring 2
+  uint16_t RadiatorIN;    
+  uint16_t RadiatorOUT;   
+  uint16_t Throttle_1;    
+  uint16_t Throttle_2;    
+  uint16_t Brake;         
+  int16_t vBat;          
+  int16_t accLong;       
+  int16_t accLat;         
+  int16_t accVert;        
+  int16_t yawRate;        
+  int16_t Pitch;          
+  int16_t Roll;           
+  uint16_t GPS_Fix;       
+  uint16_t CAN1_Load;     
+  uint16_t CAN1_Errors;   
 } can_PLEX_t;
 
-#define GET_UINT32_LE_BYTE_(buffer, byte) (uint32_t) (buffer[byte + 3] << 3 | buffer[byte + 2] << 2 | buffer[byte + 1] << 1 | buffer[byte])
+#define GET_UINT32_LE_BYTE_(buffer, byte) (uint32_t) (buffer[byte + 3] << 24 | buffer[byte + 2] << 16 | buffer[byte + 1] << 8 | buffer[byte])
 
-#define GET_INT32_LE_BYTE_(buffer, byte) (int32_t) (buffer[byte + 3] << 3 | buffer[byte + 2] << 2 | buffer[byte + 1] << 1 | buffer[byte])
+#define GET_INT32_LE_BYTE_(buffer, byte) (int32_t) (buffer[byte + 3] << 24 | buffer[byte + 2] << 16 | buffer[byte + 1] << 8 | buffer[byte])
 
-#define GET_INT16_LE_BYTE_(buffer, byte) (int16_t) (buffer[byte + 1] << 1 | buffer[byte])
+#define GET_INT16_LE_BYTE_(buffer, byte) (int16_t) (buffer[byte + 1] << 8 | buffer[byte])
 
-#define GET_UINT16_LE_BYTE_(buffer, byte) (uint16_t) (buffer[byte + 1] << 1 | buffer[byte])
+#define GET_UINT16_LE_BYTE_(buffer, byte) (uint16_t) (buffer[byte + 1] << 8 | buffer[byte])
 
 
-#define GET_UINT32_BE_BYTE_(buffer, byte) (uint32_t) (buffer[byte] << 3 | buffer[byte + 1] << 2 | buffer[byte + 2] << 1 | buffer[byte+3])
+#define GET_UINT32_BE_BYTE_(buffer, byte) (uint32_t) (buffer[byte] << 24 | buffer[byte + 1] << 16 | buffer[byte + 2] << 8 | buffer[byte+3])
 
-#define GET_INT32_BE_BYTE_(buffer, byte) (int32_t) (buffer[byte] << 3 | buffer[byte + 1] << 2 | buffer[byte + 2] << 1 | buffer[byte+3])
+#define GET_INT32_BE_BYTE_(buffer, byte) (int32_t) (buffer[byte] << 24 | buffer[byte + 1] << 16 | buffer[byte + 2] << 8 | buffer[byte+3])
 
-#define GET_INT16_BE_BYTE_(buffer, byte) (int16_t) (buffer[byte] << 1 | buffer[byte+1])
+#define GET_INT16_BE_BYTE_(buffer, byte) (int16_t) (buffer[byte] << 8 | buffer[byte+1])
 
-#define GET_UINT16_BE_BYTE_(buffer, byte) (uint16_t) (buffer[byte] << 1 | buffer[byte+1])
+#define GET_UINT16_BE_BYTE_(buffer, byte) (uint16_t) (buffer[byte] << 8 | buffer[byte+1])
 
 void twai_receive_task(void *arg);
 
+
+void print_can_data_hex(twai_message_t * msg);
 
 
 #endif  // CAN.h
