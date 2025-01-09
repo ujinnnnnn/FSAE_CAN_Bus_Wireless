@@ -50,7 +50,7 @@ static const gpio_config_t M0M1_config = {.intr_type = GPIO_INTR_DISABLE,
   
 
 static uart_config_t lora_uart_config = {
-      .baud_rate = 9600,
+      .baud_rate = 115200,
       .data_bits = UART_DATA_8_BITS,
       .parity = UART_PARITY_DISABLE,
       .stop_bits = UART_STOP_BITS_1,
@@ -61,10 +61,8 @@ SemaphoreHandle_t setup_sem;
 
 SemaphoreHandle_t transmit_sem;
 
-extern SemaphoreHandle_t lora_uart_mutex;
 void init(){
   transmit_sem = xSemaphoreCreateBinary();
-  lora_uart_mutex = xSemaphoreCreateMutex();
   //Install and start TWAI driver
   ESP_ERROR_CHECK(twai_driver_install(&g_config, &t_config, &f_config));
   ESP_LOGI(TAG, "Driver installed");
@@ -133,7 +131,10 @@ void app_main(void)
   init();
   // xTaskCreatePinnedToCore(LoRa_rx_check, "LoRa RX", 4096, NULL, LORA_RX_CHECK_PRIORITY, NULL, tskNO_AFFINITY);
 
-  xTaskCreatePinnedToCore(twai_receive_task, "TWAI_rx", 4096, NULL, TWAI_RECEIVE_PRIORITY, NULL, 0);
+  // xTaskCreatePinnedToCore(twai_receive_task, "TWAI_rx", 4096, NULL, TWAI_RECEIVE_PRIORITY, NULL, 0);
+
+  xTaskCreatePinnedToCore(LoRa_sender_task,"sender",4096,NULL,SENDER_PRIORITY,NULL,1);
+
   xTaskCreatePinnedToCore(slow_1_transmit_task, "slow 1 tx", 4096, NULL, LORA_SLOW_1_PRIORITY, NULL, 1);
   xTaskCreatePinnedToCore(slow_2_transmit_task, "slow 2 tx", 4096, NULL, LORA_SLOW_2_PRIORITY, NULL, 1);
 
