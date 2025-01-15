@@ -11,6 +11,7 @@ import serial
 import struct
 import threading
 from threading import Thread
+import base64
 
 import json
 
@@ -78,8 +79,10 @@ bms = bmsData()
 plex = plexData() 
 TotalCells = 120
 cell_data = [cellData() for i in range(TotalCells)]
+print(len(cell_data))
 
-thermistor_data = []
+thermistor_data = [0 for i in range(80)]
+print(len(thermistor_data))
 
 class camhandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -202,164 +205,213 @@ def SerialParser(serial_port):
     ser = serial.Serial(
         port = serial_port,
         baudrate = 9600,
-        timeout = 0.1) # timeout in seconds
-    ser.reset_input_buffer()
+        ) # timeout in seconds
+
     while (True):
-        buffer = ser.read_until(expected = '#')
-        if(len(buffer) != 0):   
-            message_id = struct.unpack_from("I",buffer,1)[0]
-            print(message_id, flush = True)
-            print(buffer, flush = True)
-            print(len(buffer), flush = True)
-            if ((message_id >> 8) == 0xF): # Cell Voltage Message
-                segment_id = message_id & 0x0F
-                data_tuple = struct.unpack_from("HHHHHHHHHHHH",buffer,2)
-                for cell in range(12):
-                    cell_data[segment_id*12 + cell].OpenVoltage = data_tuple[cell] / 10
-            elif ((message_id >> 8) == 0xE): # thermistor message
-                thermistor_id_tens = message_id & 0x0F
-                data_tuple = struct.unpack_from("bbbbbbbb",buffer,2)
-                for thermistor in range(8):
-                    thermistor_data[thermistor_id_tens * 10 + thermistor] = data_tuple[thermistor]
+        data_buffer = bytearray()
+        while (True):
+            buf = ser.read()
+            try:
+                if (ser.read()[0] == 0x24):
+                    break
+            except IndexError:
+                print("serial timeout start")
+            except Exception as e:
+                print(repr(e))
+
+        while (True):
+            try:
+                char = ser.read()[0]
+                if (char == 0x23):
+                    break
+                else:
+                    data_buffer.append(char)
+            except IndexError:
+                print("serial timeout")
+            except Exception as e:
+                print(repr(e))
+
+        try:
+            print("".join([f"{byte:02x} " for byte in data_buffer]), flush = True)
+            message_id = struct.unpack_from("B",data_buffer,0)[0]
+            # print(hex(message_id))
+            buffer = base64.b64decode(data_buffer[1:])
+            # print(len(buffer))
+            # print(buffer)
+        except Exception as e:
+            print("data buffer\n","".join([f"{byte:02x} " for byte in data_buffer]), flush = True)
+            print(f"sliced length : {len(data_buffer[1:])}")
+            continue
+
+        if ((message_id >> 4) == 0xF): # Cell Voltage Message
+            segment_id = message_id & 0x0F 
+            if (len(buffer) < struct.calcsize("HHHHHHHHHHHH")):
+                print("insufficient data",hex(message_id))
                 continue
-            else:
-                match message_id:
-                    case 0xCC: # fast critical 
-                        data_tuple = struct.unpack_from("IhhhhhBBBBbBBB",buffer,2)
-                        dti.erpm = data_tuple[0]
-                        dti.duty_cycle = data_tuple[1] / 10
-                        dti.ac_current = data_tuple[2] / 10
-                        dti.dc_current = data_tuple[3] / 10
-                        plex.Throttle_1 = data_tuple[4] / 10
-                        plex.Throttle_2 = data_tuple[5] / 10
-                        plex.Brake = data_tuple[6] / 10
-                        bms.HighOpenCellVoltage = data_tuple[7] / 50
-                        bms.LowOpenCellVoltage = data_tuple[8] / 50
-                        bms.HighOpenCellID = data_tuple[9]
-                        bms.LowOpenCellID = data_tuple[10]
-                        dti.throttle_in = data_tuple[11]
-                        dti.ActiveLimitsByte4 = data_tuple[12]
-                        dti.ActiveLimitsByte5 = data_tuple[13]
-                        dti.FAULT_CODE = data_tuple[14]
-
-                        data = {
-                            "inv_erpm" : str(dti.erpm),
-                            "inv_duty_cycle" : str(dti.duty_cycle),
-                            "inv_ac_current" : str(dti.ac_current),
-                            "inv_dc_current" : str(dti.dc_current),
-                            "plex_throttle_1" : str(plex.Throttle_1),
-                            "plex_throttle_2" : str(plex.Throttle_2),
-                            "plex_brake" : str(plex.Brake),
-                            "bms_high_open_voltage" : str(bms.HighOpenCellVoltage),
-                            "bms_low_open_voltage" : str(bms.LowOpenCellVoltage),
-                            "bms_high_open_id" : str(bms.HighOpenCellID),
-                            "bms_low_open_id" : str(bms.LowOpenCellID),
-                            "inv_throttle_in" : str(dti.throttle_in),
-                            "inv_limits_4" : str(dti.ActiveLimitsByte4),
-                            "inv_limits_5" : str(dti.ActiveLimitsByte5),
-                            "inv_fault_code" : str(dti.FAULT_CODE)                           
-                        }
-                        broadcast(CONNECTIONS,json.dumps(data))
-                    case 0xAA: # fast info 
-                        data_tuple = struct.unpack_from("hhhhhhh",buffer,2)
-                        bms.PackCurrent = data_tuple[0]
-                        plex.accLong = data_tuple[1] / 1000
-                        plex.accLat = data_tuple[2] / 1000
-                        plex.accVert = data_tuple[3] / 1000
-                        plex.yawRate = data_tuple[4] / 10
-                        plex.Pitch = data_tuple[5] / 10
-                        plex.Roll = data_tuple[6] / 10
-
-                        data = {
-                            "bms_pack_current" : str(bms.PackCurrent),
-                            "plex_acc_long" : str(plex.accLong),
-                            "plex_acc_lat" : str(plex.accLat),
-                            "plex_acc_vert" : str(plex.accVert),
-                            "plex_yaw_rate" : str(plex.yawRate),
-                            "plex_pitch" : str(plex.Pitch),
-                            "plex_roll" : str(plex.Roll)
-                        }
-                        broadcast(CONNECTIONS,json.dumps(data))
-                    case 0x12: # slow 1
-                        data_tuple = struct.unpack_from("hhhhHHHHHhBbb",buffer,2)
-
-                        dti.inverter_temp = data_tuple[0] / 10
-                        dti.motor_temp = data_tuple[1] / 10
-                        dti.input_voltage = data_tuple[2] 
-                        bms.AverageCurrent = data_tuple[3] 
-                        bms.PackOpenVoltage = data_tuple[4] 
-                        bms.PackDCL = data_tuple[5] 
-                        bms.PackAbsCurrent = data_tuple[6] 
-                        plex.RadiatorIN = data_tuple[7] / 10 
-                        plex.RadiatorOUT = data_tuple[8]  / 10
-                        plex.BatteryVoltage = data_tuple[9] / 1000
-                        bms.PackSOC = data_tuple[10] 
-                        bms.HighTemperature = data_tuple[11] 
-                        bms.InternalTemperature = data_tuple[12] 
-
-                        data = {
-                            "inv_temp" : str(dti.inverter_temp),
-                            "motor_temp" : str(dti.motor_temp),
-                            "inv_voltage" : str(dti.input_voltage),
-                            "bms_average_current" : str(bms.AverageCurrent),
-                            "bms_open_voltage" : str(bms.PackOpenVoltage),
-                            "bms_pack_dcl" : str(bms.PackDCL),
-                            "bms_pack_abs_current" : str(bms.PackAbsCurrent),
-                            "plex_radiator_in" : str(plex.RadiatorIN),
-                            "plex_radiator_out" : str(plex.RadiatorOUT),
-                            "plex_battery_voltage" : str(plex.BatteryVoltage),
-                            "bms_soc": str(bms.PackSOC),
-                            "bms_high_temperature" : str(bms.HighTemperature),
-                            "bms_internal_temperature" : str(bms.InternalTemperature)
-                        }
-                        broadcast(CONNECTIONS,json.dumps(data))
-                    case 0x34: # slow 2
-                        data_tuple = struct.unpack_from("IIHHHBBBBB??",2)
-                        dti.FOC_Id = data_tuple[0] / 100
-                        dti.FOC_Iq = data_tuple[1] / 100
-                        plex.GPS_Fix = data_tuple[2]
-                        plex.CAN1_Load = data_tuple[3]
-                        plex.CAN1_Errors = data_tuple[4]
-                        dti.DigitalIO = data_tuple[5]
-                        dti.Drive_EN = data_tuple[6]
-                        dti.CAN_MapVers = data_tuple[7]
-                        bms.DTCFlags_1 = data_tuple[8]
-                        bms.DTCFlags_2 = data_tuple[9]
-                        bms.BalancingEnabled = data_tuple[10]
-                        bms.DischargeEnableInverted = data_tuple[11]
-
-                        data = {
-                            "inv_foc_id" : str(dti.FOC_Id),
-                            "inv_foc_iq" : str(dti.FOC_Iq),
-                            "plex_gps_fix" : str(plex.GPS_Fix),
-                            "plex_can1_load" : str(plex.CAN1_Load),
-                            "plex_can1_errors" : str(plex.CAN1_Errors),
-                            "inv_digital_io" : str(dti.DigitalIO),
-                            "inv_can_map_vers" : str(dti.CAN_MapVers),
-                            "bms_dtc_flags_1" : str(bms.DTCFlags_1),
-                            "bms_dtc_flags_2" : str(bms.DTCFlags_2),
-                            "bms_balancing_enabled" : str(bms.BalancingEnabled),
-                            "bms_discharge_enable_inverted" : str(bms.DischargeEnableInverted)
-                        }
-                        broadcast(CONNECTIONS,json.dumps(data))
-                    case _:
-                        print("bruh what")
+            data_tuple = struct.unpack_from("HHHHHHHHHHHH",buffer)
+            for cell in range(12):
+                cell_data[segment_id*12 + cell].OpenVoltage = data_tuple[cell] / 10
+        elif ((message_id >> 4) == 0xE): # thermistor message
+            thermistor_id_tens = message_id & 0x0F
+            if (len(buffer) < struct.calcsize("bbbbbbbb")):
+                print("insufficient data",hex(message_id))
+                continue
+            data_tuple = struct.unpack_from("bbbbbbbb",buffer)
+            for thermistor in range(8):
+                thermistor_data[thermistor_id_tens * 8 + thermistor] = data_tuple[thermistor]
+            continue
         else:
-            dti.inverter_temp = random.randint(35,39)
-            dti.motor_temp = random.randint(45,50)
-            bms.InternalTemperature = random.randint(26,30)
+            match message_id:
+                case 0x90: # fast critical 
+                    if (len(buffer) != struct.calcsize("IhhhhhhBBBBbBBB")):
+                        print("mismatch data length",hex(message_id))
+                        print("expected", struct.calcsize("IhhhhhhBBBBbBBB"), "got " ,{len(buffer)},"".join([f"{byte:02x} " for byte in buffer]))
+                        continue
+                    data_tuple = struct.unpack_from("IhhhhhhBBBBbBBB",buffer)
+                    dti.erpm = data_tuple[0]
+                    dti.duty_cycle = data_tuple[1] / 10
+                    dti.ac_current = data_tuple[2] / 10
+                    dti.dc_current = data_tuple[3] / 10
+                    plex.Throttle_1 = data_tuple[4] / 10
+                    plex.Throttle_2 = data_tuple[5] / 10
+                    plex.Brake = data_tuple[6] / 10
+                    bms.HighOpenCellVoltage = data_tuple[7] / 50
+                    bms.LowOpenCellVoltage = data_tuple[8] / 50
+                    bms.HighOpenCellID = data_tuple[9]
+                    bms.LowOpenCellID = data_tuple[10]
+                    dti.throttle_in = data_tuple[11]
+                    dti.ActiveLimitsByte4 = data_tuple[12]
+                    dti.ActiveLimitsByte5 = data_tuple[13]
+                    dti.FAULT_CODE = data_tuple[14]
 
-            bms.PackOpenVoltage = 476 + random.randint(-2,2)
-            dti.input_voltage = 476 + random.randint(-2,2)
-            data = {
-                "inv_voltage" : str(dti.input_voltage),
-                "bms_open_voltage" : str(bms.PackOpenVoltage),
-                "inv_temp" : str(dti.inverter_temp),
-                "motor_temp" : str(dti.motor_temp),
-                "bms_internal_temperature" : str(bms.InternalTemperature)
-            }
-            broadcast(CONNECTIONS,json.dumps(data))
-            time.sleep(0.1)
+                    data = {
+                        "inv_erpm" : str(dti.erpm),
+                        "inv_duty_cycle" : str(dti.duty_cycle),
+                        "inv_ac_current" : str(dti.ac_current),
+                        "inv_dc_current" : str(dti.dc_current),
+                        "plex_throttle_1" : str(plex.Throttle_1),
+                        "plex_throttle_2" : str(plex.Throttle_2),
+                        "plex_brake" : str(plex.Brake),
+                        "bms_high_open_voltage" : str(bms.HighOpenCellVoltage),
+                        "bms_low_open_voltage" : str(bms.LowOpenCellVoltage),
+                        "bms_high_open_id" : str(bms.HighOpenCellID),
+                        "bms_low_open_id" : str(bms.LowOpenCellID),
+                        "inv_throttle_in" : str(dti.throttle_in),
+                        "inv_limits_4" : str(dti.ActiveLimitsByte4),
+                        "inv_limits_5" : str(dti.ActiveLimitsByte5),
+                        "inv_fault_code" : str(dti.FAULT_CODE)                           
+                    }
+                    broadcast(CONNECTIONS,json.dumps(data))
+                case 0x91: # fast info 
+                    if (len(buffer) < struct.calcsize("hhhhhhh")):
+                        print("insufficient data",hex(message_id))
+                        continue
+                    data_tuple = struct.unpack_from("hhhhhhh",buffer)
+                    bms.PackCurrent = data_tuple[0]
+                    plex.accLong = data_tuple[1] / 1000
+                    plex.accLat = data_tuple[2] / 1000
+                    plex.accVert = data_tuple[3] / 1000
+                    plex.yawRate = data_tuple[4] / 10
+                    plex.Pitch = data_tuple[5] / 10
+                    plex.Roll = data_tuple[6] / 10
+
+                    data = {
+                        "bms_pack_current" : str(bms.PackCurrent),
+                        "plex_acc_long" : str(plex.accLong),
+                        "plex_acc_lat" : str(plex.accLat),
+                        "plex_acc_vert" : str(plex.accVert),
+                        "plex_yaw_rate" : str(plex.yawRate),
+                        "plex_pitch" : str(plex.Pitch),
+                        "plex_roll" : str(plex.Roll)
+                    }
+                    broadcast(CONNECTIONS,json.dumps(data))
+                case 0x80: # slow 1
+                    if (len(buffer) < struct.calcsize("hhhhHHHHHhBbb")):
+                        print("insufficient data",hex(message_id))
+                        continue
+                    data_tuple = struct.unpack_from("hhhhHHHHHhBbb",buffer)
+
+                    dti.inverter_temp = data_tuple[0] / 10
+                    dti.motor_temp = data_tuple[1] / 10
+                    dti.input_voltage = data_tuple[2] 
+                    bms.AverageCurrent = data_tuple[3] 
+                    bms.PackOpenVoltage = data_tuple[4] 
+                    bms.PackDCL = data_tuple[5] 
+                    bms.PackAbsCurrent = data_tuple[6] 
+                    plex.RadiatorIN = data_tuple[7] / 10 
+                    plex.RadiatorOUT = data_tuple[8]  / 10
+                    plex.BatteryVoltage = data_tuple[9] / 1000
+                    bms.PackSOC = data_tuple[10] 
+                    bms.HighTemperature = data_tuple[11] 
+                    bms.InternalTemperature = data_tuple[12] 
+
+                    data = {
+                        "inv_temp" : str(dti.inverter_temp),
+                        "motor_temp" : str(dti.motor_temp),
+                        "inv_voltage" : str(dti.input_voltage),
+                        "bms_average_current" : str(bms.AverageCurrent),
+                        "bms_open_voltage" : str(bms.PackOpenVoltage),
+                        "bms_pack_dcl" : str(bms.PackDCL),
+                        "bms_pack_abs_current" : str(bms.PackAbsCurrent),
+                        "plex_radiator_in" : str(plex.RadiatorIN),
+                        "plex_radiator_out" : str(plex.RadiatorOUT),
+                        "plex_battery_voltage" : str(plex.BatteryVoltage),
+                        "bms_soc": str(bms.PackSOC),
+                        "bms_high_temperature" : str(bms.HighTemperature),
+                        "bms_internal_temperature" : str(bms.InternalTemperature)
+                    }
+                    broadcast(CONNECTIONS,json.dumps(data))
+                case 0x81: # slow 2
+                    if (len(buffer) < struct.calcsize("IIHHHBBBBB??")):
+                        print("insufficient data",hex(message_id))
+                        continue
+                    data_tuple = struct.unpack_from("IIHHHBBBBB??",buffer)
+                    dti.FOC_Id = data_tuple[0] / 100
+                    dti.FOC_Iq = data_tuple[1] / 100
+                    plex.GPS_Fix = data_tuple[2]
+                    plex.CAN1_Load = data_tuple[3]
+                    plex.CAN1_Errors = data_tuple[4]
+                    dti.DigitalIO = data_tuple[5]
+                    dti.Drive_EN = data_tuple[6]
+                    dti.CAN_MapVers = data_tuple[7]
+                    bms.DTCFlags_1 = data_tuple[8]
+                    bms.DTCFlags_2 = data_tuple[9]
+                    bms.BalancingEnabled = data_tuple[10]
+                    bms.DischargeEnableInverted = data_tuple[11]
+
+                    data = {
+                        "inv_foc_id" : str(dti.FOC_Id),
+                        "inv_foc_iq" : str(dti.FOC_Iq),
+                        "plex_gps_fix" : str(plex.GPS_Fix),
+                        "plex_can1_load" : str(plex.CAN1_Load),
+                        "plex_can1_errors" : str(plex.CAN1_Errors),
+                        "inv_digital_io" : str(dti.DigitalIO),
+                        "inv_can_map_vers" : str(dti.CAN_MapVers),
+                        "bms_dtc_flags_1" : str(bms.DTCFlags_1),
+                        "bms_dtc_flags_2" : str(bms.DTCFlags_2),
+                        "bms_balancing_enabled" : str(bms.BalancingEnabled),
+                        "bms_discharge_enable_inverted" : str(bms.DischargeEnableInverted)
+                    }
+                    broadcast(CONNECTIONS,json.dumps(data))
+                case _:
+                    print("unknown message_id", hex(message_id), flush = True)
+        # else:
+        #     continue
+        #     dti.inverter_temp = random.randint(35,39)
+        #     dti.motor_temp = random.randint(45,50)
+        #     bms.InternalTemperature = random.randint(26,30)
+
+        #     bms.PackOpenVoltage = 476 + random.randint(-2,2)
+        #     dti.input_voltage = 476 + random.randint(-2,2)
+        #     data = {
+        #         "inv_voltage" : str(dti.input_voltage),
+        #         "bms_open_voltage" : str(bms.PackOpenVoltage),
+        #         "inv_temp" : str(dti.inverter_temp),
+        #         "motor_temp" : str(dti.motor_temp),
+        #         "bms_internal_temperature" : str(bms.InternalTemperature)
+        #     }
+        #     broadcast(CONNECTIONS,json.dumps(data))
+        #     time.sleep(0.1)
 
 if __name__ == "__main__":
     httpServerThread = Thread(target=HTTPserverThread,args=[DEFWEBPORT])

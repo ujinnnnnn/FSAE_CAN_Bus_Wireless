@@ -1,5 +1,9 @@
-const ws = new WebSocket("ws://192.168.243.20:8000");
+const ws = new WebSocket("ws://192.168.153.20:8000");
 
+function clearData(){
+  sessionStorage.clear();
+  location.reload();
+}
 
 function graphNewdata(this_chart,this_dataset,dataAsString){
   var x =  Math.round(((new Date()).getTime() - series_data["epoch"])/100),y = parseFloat(dataAsString)
@@ -87,6 +91,7 @@ ws.onopen = () => {
 
 ws.onmessage = (event) => {
   data = JSON.parse(event.data);
+  console.log(event.data)
   while (document.readyState != "complete");
   for (const key in data){
     switch (key){
@@ -100,8 +105,10 @@ ws.onmessage = (event) => {
         graphNewdata(hv_voltage_chart,"inv_voltage",data[key]);
         break;
       case "inv_foc_id":
+        document.getElementById("inv_foc_id").innerHTML = data[key];
         break;
       case "inv_foc_iq":
+        document.getElementById("inv_foc_iq").innerHTML = data[key];
         break;
       case "inv_erpm":
         break;
@@ -116,28 +123,40 @@ ws.onmessage = (event) => {
       case "inv_brake_in":
         break;
       case "inv_drive_en":
+        document.getElementById("inv_drive_en").innerHTML = parseInt(data[key]).toString(2);
         break;
       case "inv_can_map_vers":
+        document.getElementById("inv_can_map_vers").innerHTML = data[key];
         break;
       case "inv_digital_io":
+        document.getElementById("inv_digital_io").innerHTML = parseInt(data[key]).toString(2);
         break;
       case "inv_limits_4":
+        document.getElementById("inv_limits_4").innerHTML = parseInt(data[key]).toString(2);
         break;
       case "inv_limits_5":
+        document.getElementById("inv_limits_5").innerHTML = parseInt(data[key]).toString(2);
         break;
       case "inv_fault_code":
+        document.getElementById("inv_fault_code").innerHTML = "0x" + parseInt(data[key]).toString(16).toUpperCase();
         break;
       case "bms_high_open_voltage":
+        document.getElementById("bms_high_open_voltage").innerHTML = data[key];
         break;
       case "bms_low_open_voltage":
+        document.getElementById("bms_low_open_voltage").innerHTML = data[key];
         break;
       case "bms_high_open_id":
+        document.getElementById("bms_high_open_id").innerHTML = data[key];
         break;
       case "bms_low_open_id":
+        document.getElementById("bms_low_open_id").innerHTML = data[key];
         break;
       case "bms_pack_dcl":
+        document.getElementById("bms_pack_dcl").innerHTML = data[key] + "A";
         break;
       case "bms_pack_abs_current":
+        document.getElementById("bms_pack_abs_current").innerHTML = data[key] + "A";
         break;
       case "bms_open_voltage":
         break;
@@ -153,24 +172,32 @@ ws.onmessage = (event) => {
         graphNewdata(temperature_chart,"bms_internal_temperature",data[key]);
         break;
       case "bms_dtc_flags_1":
+        document.getElementById("bms_dtc_flags_1").innerHTML = "0x" +  parseInt(data[key]).toString(16).toUpperCase();
         break;
       case "bms_dtc_flags_2":
+        document.getElementById("bms_dtc_flags_2").innerHTML = "0x" +  parseInt(data[key]).toString(16).toUpperCase();
         break;
       case "bms_balancing_enabled":
+        document.getElementById("bms_balancing_enabled").innerHTML = data[key];
         break;
       case "bms_discharge_enable_inverted":
+        document.getElementById("bms_discharge_enable_inverted").innerHTML = data[key];
         break;
       case "plex_radiator_in":
         break;
       case "plex_radiator_out":
         break;
       case "plex_battery_voltage":
+        document.getElementById("plex_battery_voltage").innerHTML = data[key] + "V";
         break;
       case "plex_gps_fix":
+        document.getElementById("plex_gps_fix").innerHTML = data[key] ;
         break;
       case "plex_can1_load":
+        document.getElementById("plex_can1_load").innerHTML = data[key] + "%";
         break;
       case "plex_can1_errors":
+        document.getElementById("plex_can1_errors").innerHTML = data[key] + "%";
         break;
       case "plex_throttle_1":
         break;
