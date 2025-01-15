@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
+#include "string.h"
 
 #include "freertos/freertos.h"
 #include "freertos/task.h"
@@ -30,8 +30,7 @@ static char TAG[] = "LoRa.c";
     memcpy((void*) &lora_data_buffer[], (void*) & , );
 */
 
-QueueHandle_t LoRa_TX_Queue;
-StaticQueue_t LoRa_TX_QueueStruct;
+extern QueueHandle_t LoRa_TX_Queue;
 
 void LoRa_rx_check(void *arg)
 {
@@ -66,33 +65,30 @@ void LoRa_rx_check(void *arg)
   }
 }
 
-uint8_t LoRa_TX_Queue_Storage[64 * sizeof(LoRa_message_t)];
-
 void
 LoRa_sender_task(void* arg)
 {
   static char lora_tx_buffer[256] = {0};
   lora_tx_buffer[0] = START_BYTE;
-
-  LoRa_TX_Queue = xQueueCreateStatic(
-    64, // queue length
-    sizeof(LoRa_message_t),
-    LoRa_TX_Queue_Storage,
-    &LoRa_TX_QueueStruct);
-
+  
   LoRa_message_t message = {0};
   size_t encoded_str_len = 0;
   while (1){
-    if (xQueueReceive(LoRa_TX_Queue,&message,0) == pdTRUE)  {
+    // ESP_LOGI(TAG,"sender water mark %d",uxTaskGetStackHighWaterMark(NULL));
+    if (xQueueReceive(LoRa_TX_Queue,&message,portMAX_DELAY) == pdTRUE)  {
+      // ESP_LOGI(TAG,"queue space %d",uxQueueMessagesWaiting(LoRa_TX_Queue));
       lora_tx_buffer[START_BYTES] = message.id;
       encoded_str_len = base64_encode(message.data,message.length,&lora_tx_buffer[START_BYTES + ID_BYTES]);            
+      // ESP_LOGI(TAG,"encoded length:%d",encoded_str_len);
 
       lora_tx_buffer[START_BYTES + ID_BYTES + encoded_str_len] = END_BYTE;
       while(gpio_get_level(AUX_PIN) == 0)vTaskDelay(1);
-      uart_write_bytes(UART_NUM, (void*)lora_tx_buffer,START_BYTES + ID_BYTES + encoded_str_len + END_BYTES);
+
+      ESP_LOGW(TAG,"bytes written:%d id:%X",uart_write_bytes(UART_NUM, (void*)lora_tx_buffer,START_BYTES + ID_BYTES + encoded_str_len + END_BYTES),message.id);
+      //esp_intr_dump(NULL);
       free(message.data);
     }else{
-      vTaskDelay(1);
+      vTaskDelay(500 / portTICK_PERIOD_MS);
     }
   }
 }
@@ -102,9 +98,10 @@ void slow_1_transmit_task(void *arg)
 #define DATA_BYTES 23
   LoRa_message_t message = {.id = SLOW_1_ID,.length = DATA_BYTES + CRC_BYTES};
 
-  while (uxSemaphoreGetCount(transmit_sem) == 1)
+  while (1)
   {
     message.data = malloc(DATA_BYTES + CRC_BYTES);
+    if (message.data == NULL) ESP_LOGW(TAG,"slow 1 malloc failed");
     memcpy((void *)&message.data[0], (void *)&Inv_data.inverter_temp, 2);
     memcpy((void *)&message.data[2], (void *)&Inv_data.motor_temp, 2);
     memcpy((void *)&message.data[4], (void *)&Inv_data.input_voltage, 2);
@@ -123,9 +120,11 @@ void slow_1_transmit_task(void *arg)
     uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
     memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,0) == pdFALSE) ESP_LOGW(TAG,"queue full");
 
-    vTaskDelay(pdMS_TO_TICKS(SLOW_1_TRANSMIT_PERIOD_MS));
+    xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS));
+
+    // ESP_LOGI(TAG,"slow 1 water mark %d",uxTaskGetStackHighWaterMark(NULL));
+    vTaskDelay(SLOW_1_TRANSMIT_PERIOD_MS / portTICK_PERIOD_MS);
 #undef DATA_BYTES
   }
 }
@@ -138,6 +137,7 @@ void slow_2_transmit_task(void *arg)
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
     message.data = malloc(DATA_BYTES + CRC_BYTES);
+    if (message.data == NULL) ESP_LOGW(TAG,"slow 2 malloc failed");
     memcpy((void *)&message.data[0], (void *)&Inv_data.FOC_Id, 4);
     memcpy((void *)&message.data[4], (void *)&Inv_data.FOC_Iq, 4);
     memcpy((void *)&message.data[8], (void *)&Plex_data.GPS_Fix, 2);
@@ -154,8 +154,9 @@ void slow_2_transmit_task(void *arg)
     uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
     memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,0) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
 
+    // ESP_LOGI(TAG,"slow 2 water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(SLOW_2_TRANSMIT_PERIOD_MS));
 #undef DATA_BYTES
   }
@@ -169,6 +170,7 @@ void fast_critical_transmit_task(void *arg)
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
     message.data = malloc(DATA_BYTES + CRC_BYTES);
+    if (message.data == NULL) ESP_LOGW(TAG,"fast crit malloc failed");
     memcpy((void *)&message.data[0], (void *)&Inv_data.erpm, 4);
     memcpy((void *)&message.data[4], (void *)&Inv_data.duty_cycle, 2);
     memcpy((void *)&message.data[6], (void *)&Inv_data.ac_current, 2);
@@ -188,8 +190,9 @@ void fast_critical_transmit_task(void *arg)
     uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
     memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,0) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
 
+    // ESP_LOGI(TAG,"fast crit water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(FAST_CRITICAL_TRANSMIT_PERIOD_MS));
 #undef DATA_BYTES
   }
@@ -206,6 +209,7 @@ void fast_information_transmit_task(void *arg)
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
     message.data = malloc(DATA_BYTES + CRC_BYTES);
+    if (message.data == NULL) ESP_LOGW(TAG,"fast info malloc failed");
     memcpy((void *)&message.data[0], (void *)&BMS_data.PackCurrent, 2);
     memcpy((void *)&message.data[2], (void *)&Plex_data.accLong, 2);
     memcpy((void *)&message.data[4], (void *)&Plex_data.accLat, 2);
@@ -217,8 +221,9 @@ void fast_information_transmit_task(void *arg)
     uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
     memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,0) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
 
+    // ESP_LOGI(TAG,"fast info water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(FAST_INFORMATION_TRANSMIT_PERIOD_MS));
 #undef DATA_BYTES
   }
@@ -235,6 +240,7 @@ void cell_voltage_transmit_task(void *arg)
     message.id = 0xF0 | segment_id;
 
     message.data = malloc(DATA_BYTES + CRC_BYTES);
+    if (message.data == NULL) ESP_LOGW(TAG,"cell malloc failed");
     memcpy((void *)&message.data[0], (void *)&Cell_data[segment_id + 0].OpenVoltage, 2);
     memcpy((void *)&message.data[2], (void *)&Cell_data[segment_id + 1].OpenVoltage, 2);
     memcpy((void *)&message.data[4], (void *)&Cell_data[segment_id + 2].OpenVoltage, 2);
@@ -253,8 +259,9 @@ void cell_voltage_transmit_task(void *arg)
 
     segment_id = (segment_id + 1) % 10;
 
-    while (xQueueSend(LoRa_TX_Queue,&message,0) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
 
+    ESP_LOGI(TAG,"cell voltage water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(CELL_VOLTAGE_TRANSMIT_PERIOD_MS));
 #undef DATA_BYTES
   }
@@ -271,6 +278,7 @@ void thermistor_transmit_task(void *arg)
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
     message.data = malloc(DATA_BYTES + CRC_BYTES);
+    if (message.data == NULL) ESP_LOGW(TAG,"thermistor malloc failed");
     message.id = 0xE0 | thermsitor_group_id;
 
     memcpy((void *)&message.data[0], (void *)&Thermistor_data[thermsitor_group_id + 0], 1);
@@ -285,10 +293,11 @@ void thermistor_transmit_task(void *arg)
     uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
     memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,0) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
 
     thermsitor_group_id = (thermsitor_group_id + 1) % 10;
 
+    ESP_LOGI(TAG,"thermistor water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(CELL_VOLTAGE_TRANSMIT_PERIOD_MS));
 #undef DATA_BYTES
   }

@@ -50,7 +50,7 @@ static const gpio_config_t M0M1_config = {.intr_type = GPIO_INTR_DISABLE,
   
 
 static uart_config_t lora_uart_config = {
-      .baud_rate = 115200,
+      .baud_rate = 9600,
       .data_bits = UART_DATA_8_BITS,
       .parity = UART_PARITY_DISABLE,
       .stop_bits = UART_STOP_BITS_1,
@@ -61,8 +61,11 @@ SemaphoreHandle_t setup_sem;
 
 SemaphoreHandle_t transmit_sem;
 
+QueueHandle_t LoRa_TX_Queue;
 void init(){
   transmit_sem = xSemaphoreCreateBinary();
+
+  LoRa_TX_Queue = xQueueCreate(64,sizeof(LoRa_message_t));
   //Install and start TWAI driver
   ESP_ERROR_CHECK(twai_driver_install(&g_config, &t_config, &f_config));
   ESP_LOGI(TAG, "Driver installed");
@@ -98,13 +101,12 @@ can_CellData_t Cell_data[120] = {0};
 
 
 //uint16_t		crc_16(             const unsigned char *input_str, size_t num_bytes       );
-
+/*
 static void usb_debug_task(void *arg){
   while (uxSemaphoreGetCount(setup_sem) == 0);
 
   while(1){
    vTaskDelay(pdMS_TO_TICKS(2000));
-   /*
     ESP_LOGI(TAG,"\nInverter Data:\nerpm:\t%ld\nduty cycle:\t%f\nInput Voltage:\t%hd\nac current:\t%f\ndc current:\t%f\nInverter Temp:\t%f\nmotor temp:\t%f\nfault code:\t%x\n",
     Inv_data.erpm,Inv_data.duty_cycle,Inv_data.input_voltage,Inv_data.ac_current,Inv_data.dc_current,Inv_data.inverter_temp,Inv_data.motor_temp,Inv_data.FAULT_CODE);
 
@@ -120,9 +122,9 @@ static void usb_debug_task(void *arg){
       Cell_data[i*12 + 0].OpenVoltage,Cell_data[i*12 + 1].OpenVoltage,Cell_data[i*12 + 2].OpenVoltage,Cell_data[i*12 + 3].OpenVoltage,Cell_data[i*12 + 4].OpenVoltage,Cell_data[i*12 + 5].OpenVoltage,
       Cell_data[i*12 + 6].OpenVoltage,Cell_data[i*12 + 7].OpenVoltage,Cell_data[i*12 + 8].OpenVoltage,Cell_data[i*12 + 9].OpenVoltage,Cell_data[i*12 + 10].OpenVoltage,Cell_data[i*12 + 11].OpenVoltage);
       }
-   */ 
     }
 }
+*/
 
 
 
@@ -131,20 +133,19 @@ void app_main(void)
   init();
   // xTaskCreatePinnedToCore(LoRa_rx_check, "LoRa RX", 4096, NULL, LORA_RX_CHECK_PRIORITY, NULL, tskNO_AFFINITY);
 
-  // xTaskCreatePinnedToCore(twai_receive_task, "TWAI_rx", 4096, NULL, TWAI_RECEIVE_PRIORITY, NULL, 0);
+  if (xTaskCreatePinnedToCore(twai_receive_task, "TWAI_rx", 4096, NULL, TWAI_RECEIVE_PRIORITY, NULL, 0) != pdPASS) ESP_LOGE(TAG,"twai rx failed to create");
 
   xTaskCreatePinnedToCore(LoRa_sender_task,"sender",4096,NULL,SENDER_PRIORITY,NULL,1);
 
-  xTaskCreatePinnedToCore(slow_1_transmit_task, "slow 1 tx", 4096, NULL, LORA_SLOW_1_PRIORITY, NULL, 1);
+  xTaskCreatePinnedToCore(slow_1_transmit_task, "slow 1 tx", 8192, NULL, LORA_SLOW_1_PRIORITY, NULL, 1);
   xTaskCreatePinnedToCore(slow_2_transmit_task, "slow 2 tx", 4096, NULL, LORA_SLOW_2_PRIORITY, NULL, 1);
 
   xTaskCreatePinnedToCore(fast_information_transmit_task, "fast info tx", 4096, NULL, LORA_FAST_INFORMATION_PRIORITY, NULL, 1);
-  xTaskCreatePinnedToCore(fast_critical_transmit_task, "fast crit tx", 4096, NULL, LORA_FAST_CRITICAL_PRIORITY, NULL, 1);
+  // xTaskCreatePinnedToCore(fast_critical_transmit_task, "fast crit tx", 4096, NULL, LORA_FAST_CRITICAL_PRIORITY, NULL, 1);
 
-  xTaskCreatePinnedToCore(cell_voltage_transmit_task, "cell voltage tx", 4096, NULL, LORA_CELL_VOLTAGE_PRIORITY, NULL, 1);
-  xTaskCreatePinnedToCore(thermistor_transmit_task, "thermisotr tx", 4096, NULL, LORA_THERMISTOR_PRIORITY, NULL, 1);
+  // xTaskCreatePinnedToCore(cell_voltage_transmit_task, "cell voltage tx", 4096, NULL, LORA_CELL_VOLTAGE_PRIORITY, NULL, 1);
+  // xTaskCreatePinnedToCore(thermistor_transmit_task, "thermisotr tx", 4096, NULL, LORA_THERMISTOR_PRIORITY, NULL, 1);
 
   //xTaskCreatePinnedToCore(usb_debug_task, "usb debug",4096,NULL, 9,NULL,0);
 
-  vTaskDelete(NULL);
 }

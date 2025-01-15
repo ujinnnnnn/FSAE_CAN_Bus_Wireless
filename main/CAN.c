@@ -23,7 +23,8 @@ void twai_receive_task(void *arg)
   twai_message_t rx_msg;
   while (1)
   {
-    ret = twai_receive(&rx_msg, pdMS_TO_TICKS(1000));
+    
+    ret = twai_receive(&rx_msg, pdMS_TO_TICKS(100));
 
     switch (ret)
     {
@@ -120,14 +121,15 @@ void twai_receive_task(void *arg)
       break;
 
     case ESP_ERR_TIMEOUT:
+      vTaskDelay(1);
       // ESP_LOGE(TAG,"\n\n\n\n\nCAN Rx Timed out\n\n\n\n\n");
       break;
 
     default:
+      vTaskDelay(1);
       ESP_LOGE(TAG, "\n\n\n\n\n%s\n\n\n\n\n", esp_err_to_name(ret));
       break;
     }
-  vTaskDelay(1);
   }
 }
 
