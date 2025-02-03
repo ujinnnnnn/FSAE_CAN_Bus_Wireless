@@ -199,20 +199,73 @@ async def main():
     async with serve(handler, "", DEFSOCKETPORT):
         await asyncio.get_running_loop().create_future()  # run forever
 
+BUFFER = []
 
-
-def SerialParser(serial_port):
+def SerialReaderThread():
     ser = serial.Serial(
-        port = serial_port,
+        port = '/dev/ttyAMA0',
         baudrate = 9600,
         ) # timeout in seconds
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
+
+    while(1):
+        try:
+            char = ser.read()[0]
+            BUFFER.append(char)
+        except:
+            pass
+        
+    
+
+def SerialParser(serial_port):
+    epoch = int(time.time_ns() / 1000)
+    while (True):
+        data = {
+            "time_ms" : str(int(time.time_ns() / 1000) - epoch),
+            "inv_temp" : str(26 ),
+            "motor_temp" : str(28),
+            "inv_voltage" : str(468),
+            "inv_foc_id" : str(0.0),
+            "inv_foc_iq" : str(0.0),
+            "inv_drive_en" : str(0),
+            "inv_can_map_vers" : str(23),
+            "inv_digital_io" : str(0),
+            "inv_limits_4" : str(32),
+            "inv_limits_5" : str(0),
+            "inv_fault_code" : str(2),
+            "bms_high_open_voltage" : str(0),
+            "bms_low_open_voltage" : str(0),
+            "bms_high_open_id" : str(0),
+            "bms_low_open_id" : str(0),
+            "bms_pack_dcl" : str(0),
+            "bms_pack_abs_current" : str(0),
+            "bms_soc" : str(0),
+            "bms_internal_temperature" : str(0),
+            "bms_dtc_flags_1" : str(0),
+            "bms_dtc_flags_2" : str(0),
+            "bms_balancing_enabled" : str(0),
+            "bms_discharge_enable_inverted" : str(0),
+            "plex_battery_voltage" : str(10.191),
+            "plex_gps_fix" : str(0),
+            "plex_can1_load" : str(18),
+            "plex_can1_errors" : str(0),
+        }
+        for i in range(0,120):
+            data[f"CELL_{i}"] = str(round(3.78 + random.uniform(-0.02,0.02),2))
+        # print(json.dumps(data))
+        broadcast(CONNECTIONS,json.dumps(data))
+        time.sleep(1)
 
     while (True):
         data_buffer = bytearray()
         while (True):
-            buf = ser.read()
             try:
-                if (ser.read()[0] == 0x24):
+                char = BUFFER.pop(0)    
+            except:
+                continue
+            try:
+                if (char == 0x24):
                     break
             except IndexError:
                 print("serial timeout start")
@@ -221,15 +274,13 @@ def SerialParser(serial_port):
 
         while (True):
             try:
-                char = ser.read()[0]
-                if (char == 0x23):
-                    break
-                else:
-                    data_buffer.append(char)
-            except IndexError:
-                print("serial timeout")
-            except Exception as e:
-                print(repr(e))
+                char = BUFFER.pop(0)    
+            except:
+                continue
+            if (char == 0x23):
+                break
+            else:
+                data_buffer.append(char)
 
         try:
             print("".join([f"{byte:02x} " for byte in data_buffer]), flush = True)
@@ -245,46 +296,78 @@ def SerialParser(serial_port):
 
         if ((message_id >> 4) == 0xF): # Cell Voltage Message
             segment_id = message_id & 0x0F 
-            if (len(buffer) < struct.calcsize("HHHHHHHHHHHH")):
+            if (len(buffer) < struct.calcsize("IHHHHHHHHHHHH")):
                 print("insufficient data",hex(message_id))
                 continue
-            data_tuple = struct.unpack_from("HHHHHHHHHHHH",buffer)
+            data_tuple = struct.unpack_from("IHHHHHHHHHHHH",buffer)
             for cell in range(12):
-                cell_data[segment_id*12 + cell].OpenVoltage = data_tuple[cell] / 10
+                cell_data[segment_id*12 + cell].OpenVoltage = data_tuple[cell + 1] / 10
+
+            data = {
+                "time_ms" : str(data_tuple[0]),
+                f"CELL_{segment_id * 12 + 0}" : str(int(data_tuple[1])/ 10),
+                f"CELL_{segment_id * 12 + 1}" : str(int(data_tuple[2])/ 10),
+                f"CELL_{segment_id * 12 + 2}" : str(int(data_tuple[3])/ 10),
+                f"CELL_{segment_id * 12 + 3}" : str(int(data_tuple[4])/ 10),
+                f"CELL_{segment_id * 12 + 4}" : str(int(data_tuple[5])/ 10),
+                f"CELL_{segment_id * 12 + 5}" : str(int(data_tuple[6])/10),
+                f"CELL_{segment_id * 12 + 6}" : str(int(data_tuple[7])/10),
+                f"CELL_{segment_id * 12 + 7}" : str(int(data_tuple[8])/10),
+                f"CELL_{segment_id * 12 + 8}" : str(int(data_tuple[9])/10),
+                f"CELL_{segment_id * 12 + 9}" : str(int(data_tuple[10])/10),
+                f"CELL_{segment_id * 12 + 10}" : str(int(data_tuple[11])/10),
+                f"CELL_{segment_id * 12 + 11}" : str(int(data_tuple[12])/10),
+            }
+            broadcast(CONNECTIONS,json.dumps(data))
         elif ((message_id >> 4) == 0xE): # thermistor message
             thermistor_id_tens = message_id & 0x0F
-            if (len(buffer) < struct.calcsize("bbbbbbbb")):
-                print("insufficient data",hex(message_id))
+            if (len(buffer) < struct.calcsize("Ibbbbbbbbbb")):
+                print("insufficient data",hex(mesage_id))
                 continue
-            data_tuple = struct.unpack_from("bbbbbbbb",buffer)
-            for thermistor in range(8):
-                thermistor_data[thermistor_id_tens * 8 + thermistor] = data_tuple[thermistor]
-            continue
+            data_tuple = struct.unpack_from("Ibbbbbbbbbb",buffer)
+            for thermistor in range(10):
+                thermistor_data[thermistor_id_tens * 10 + thermistor] = data_tuple[thermistor + 1]
+
+            data = {
+                "time_ms" : str(data_tuple[0]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 0}" : str(data_tuple[1]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 1}" : str(data_tuple[2]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 2}" : str(data_tuple[3]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 3}" : str(data_tuple[4]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 4}" : str(data_tuple[5]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 5}" : str(data_tuple[6]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 6}" : str(data_tuple[7]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 7}" : str(data_tuple[8]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 8}" : str(data_tuple[9]),
+                f"THERMISTOR_{thermistor_id_tens * 10 + 9}" : str(data_tuple[10]),
+            }
+            broadcast(CONNECTIONS,json.dumps(data))
         else:
             match message_id:
                 case 0x90: # fast critical 
-                    if (len(buffer) != struct.calcsize("IhhhhhhBBBBbBBB")):
+                    if (len(buffer) < struct.calcsize("IihhhhhhBBBBbBBB")):
                         print("mismatch data length",hex(message_id))
-                        print("expected", struct.calcsize("IhhhhhhBBBBbBBB"), "got " ,{len(buffer)},"".join([f"{byte:02x} " for byte in buffer]))
+                        print("expected", struct.calcsize("IihhhhhhBBBBbBBB"), "got " ,{len(buffer)},"".join([f"{byte:02x} " for byte in buffer]))
                         continue
-                    data_tuple = struct.unpack_from("IhhhhhhBBBBbBBB",buffer)
-                    dti.erpm = data_tuple[0]
-                    dti.duty_cycle = data_tuple[1] / 10
-                    dti.ac_current = data_tuple[2] / 10
-                    dti.dc_current = data_tuple[3] / 10
-                    plex.Throttle_1 = data_tuple[4] / 10
-                    plex.Throttle_2 = data_tuple[5] / 10
-                    plex.Brake = data_tuple[6] / 10
-                    bms.HighOpenCellVoltage = data_tuple[7] / 50
-                    bms.LowOpenCellVoltage = data_tuple[8] / 50
-                    bms.HighOpenCellID = data_tuple[9]
-                    bms.LowOpenCellID = data_tuple[10]
-                    dti.throttle_in = data_tuple[11]
-                    dti.ActiveLimitsByte4 = data_tuple[12]
-                    dti.ActiveLimitsByte5 = data_tuple[13]
-                    dti.FAULT_CODE = data_tuple[14]
+                    data_tuple = struct.unpack_from("IihhhhhhBBBBbBBB",buffer)
+                    dti.erpm = data_tuple[1]
+                    dti.duty_cycle = data_tuple[2] / 10
+                    dti.ac_current = data_tuple[3] / 10
+                    dti.dc_current = data_tuple[4] / 10
+                    plex.Throttle_1 = data_tuple[5] / 10
+                    plex.Throttle_2 = data_tuple[6] / 10
+                    plex.Brake = data_tuple[7] / 10
+                    bms.HighOpenCellVoltage = data_tuple[8] / 50
+                    bms.LowOpenCellVoltage = data_tuple[9] / 50
+                    bms.HighOpenCellID = data_tuple[10]
+                    bms.LowOpenCellID = data_tuple[11]
+                    dti.throttle_in = data_tuple[12]
+                    dti.ActiveLimitsByte4 = data_tuple[13]
+                    dti.ActiveLimitsByte5 = data_tuple[14]
+                    dti.FAULT_CODE = data_tuple[15]
 
                     data = {
+                        "time_ms" : str(data_tuple[0]),
                         "inv_erpm" : str(dti.erpm),
                         "inv_duty_cycle" : str(dti.duty_cycle),
                         "inv_ac_current" : str(dti.ac_current),
@@ -303,19 +386,20 @@ def SerialParser(serial_port):
                     }
                     broadcast(CONNECTIONS,json.dumps(data))
                 case 0x91: # fast info 
-                    if (len(buffer) < struct.calcsize("hhhhhhh")):
+                    if (len(buffer) < struct.calcsize("Ihhhhhhh")):
                         print("insufficient data",hex(message_id))
                         continue
-                    data_tuple = struct.unpack_from("hhhhhhh",buffer)
-                    bms.PackCurrent = data_tuple[0]
-                    plex.accLong = data_tuple[1] / 1000
-                    plex.accLat = data_tuple[2] / 1000
-                    plex.accVert = data_tuple[3] / 1000
-                    plex.yawRate = data_tuple[4] / 10
-                    plex.Pitch = data_tuple[5] / 10
-                    plex.Roll = data_tuple[6] / 10
+                    data_tuple = struct.unpack_from("Ihhhhhhh",buffer)
+                    bms.PackCurrent = data_tuple[1]
+                    plex.accLong = data_tuple[2] / 1000
+                    plex.accLat = data_tuple[3] / 1000
+                    plex.accVert = data_tuple[4] / 1000
+                    plex.yawRate = data_tuple[5] / 10
+                    plex.Pitch = data_tuple[6] / 10
+                    plex.Roll = data_tuple[7] / 10
 
                     data = {
+                        "time_ms" : str(data_tuple[0]),
                         "bms_pack_current" : str(bms.PackCurrent),
                         "plex_acc_long" : str(plex.accLong),
                         "plex_acc_lat" : str(plex.accLat),
@@ -326,26 +410,27 @@ def SerialParser(serial_port):
                     }
                     broadcast(CONNECTIONS,json.dumps(data))
                 case 0x80: # slow 1
-                    if (len(buffer) < struct.calcsize("hhhhHHHHHhBbb")):
+                    if (len(buffer) < struct.calcsize("IhhhhHHHHHhBbb")):
                         print("insufficient data",hex(message_id))
                         continue
-                    data_tuple = struct.unpack_from("hhhhHHHHHhBbb",buffer)
+                    data_tuple = struct.unpack_from("IhhhhHHHHHhBbb",buffer)
 
-                    dti.inverter_temp = data_tuple[0] / 10
-                    dti.motor_temp = data_tuple[1] / 10
-                    dti.input_voltage = data_tuple[2] 
-                    bms.AverageCurrent = data_tuple[3] 
-                    bms.PackOpenVoltage = data_tuple[4] 
-                    bms.PackDCL = data_tuple[5] 
-                    bms.PackAbsCurrent = data_tuple[6] 
-                    plex.RadiatorIN = data_tuple[7] / 10 
-                    plex.RadiatorOUT = data_tuple[8]  / 10
-                    plex.BatteryVoltage = data_tuple[9] / 1000
-                    bms.PackSOC = data_tuple[10] 
-                    bms.HighTemperature = data_tuple[11] 
-                    bms.InternalTemperature = data_tuple[12] 
+                    dti.inverter_temp = data_tuple[1] / 10
+                    dti.motor_temp = data_tuple[2] / 10
+                    dti.input_voltage = data_tuple[3] 
+                    bms.AverageCurrent = data_tuple[4] 
+                    bms.PackOpenVoltage = data_tuple[5] 
+                    bms.PackDCL = data_tuple[6] 
+                    bms.PackAbsCurrent = data_tuple[7] 
+                    plex.RadiatorIN = data_tuple[8] / 10 
+                    plex.RadiatorOUT = data_tuple[9]  / 10
+                    plex.BatteryVoltage = data_tuple[10] / 1000
+                    bms.PackSOC = data_tuple[11] 
+                    bms.HighTemperature = data_tuple[12] 
+                    bms.InternalTemperature = data_tuple[13] 
 
                     data = {
+                        "time_ms" : str(data_tuple[0]),
                         "inv_temp" : str(dti.inverter_temp),
                         "motor_temp" : str(dti.motor_temp),
                         "inv_voltage" : str(dti.input_voltage),
@@ -362,24 +447,25 @@ def SerialParser(serial_port):
                     }
                     broadcast(CONNECTIONS,json.dumps(data))
                 case 0x81: # slow 2
-                    if (len(buffer) < struct.calcsize("IIHHHBBBBB??")):
+                    if (len(buffer) < struct.calcsize("IiiHHHBBBBB??")):
                         print("insufficient data",hex(message_id))
                         continue
-                    data_tuple = struct.unpack_from("IIHHHBBBBB??",buffer)
-                    dti.FOC_Id = data_tuple[0] / 100
-                    dti.FOC_Iq = data_tuple[1] / 100
-                    plex.GPS_Fix = data_tuple[2]
-                    plex.CAN1_Load = data_tuple[3]
-                    plex.CAN1_Errors = data_tuple[4]
-                    dti.DigitalIO = data_tuple[5]
-                    dti.Drive_EN = data_tuple[6]
-                    dti.CAN_MapVers = data_tuple[7]
-                    bms.DTCFlags_1 = data_tuple[8]
-                    bms.DTCFlags_2 = data_tuple[9]
-                    bms.BalancingEnabled = data_tuple[10]
-                    bms.DischargeEnableInverted = data_tuple[11]
+                    data_tuple = struct.unpack_from("IiiHHHBBBBB??",buffer)
+                    dti.FOC_Id = data_tuple[1] / 100
+                    dti.FOC_Iq = data_tuple[2] / 100
+                    plex.GPS_Fix = data_tuple[3]
+                    plex.CAN1_Load = data_tuple[4]
+                    plex.CAN1_Errors = data_tuple[5]
+                    dti.DigitalIO = data_tuple[6]
+                    dti.Drive_EN = data_tuple[7]
+                    dti.CAN_MapVers = data_tuple[8]
+                    bms.DTCFlags_1 = data_tuple[9]
+                    bms.DTCFlags_2 = data_tuple[10]
+                    bms.BalancingEnabled = data_tuple[11]
+                    bms.DischargeEnableInverted = data_tuple[12]
 
                     data = {
+                        "time_ms" : str(data_tuple[0]),
                         "inv_foc_id" : str(dti.FOC_Id),
                         "inv_foc_iq" : str(dti.FOC_Iq),
                         "plex_gps_fix" : str(plex.GPS_Fix),
@@ -417,6 +503,8 @@ if __name__ == "__main__":
     httpServerThread = Thread(target=HTTPserverThread,args=[DEFWEBPORT])
     httpServerThread.start()
 
+    serial_reader = Thread(target=SerialReaderThread)
+    serial_reader.start()
 
     serialParserThread= Thread(target=SerialParser,args=["/dev/ttyAMA0"])
     serialParserThread.start()

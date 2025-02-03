@@ -8,9 +8,6 @@
     <title>FSAE Wireless Data</title>
 </head>
 <body>
-    <a target="_self" href="bms.html" >
-      <button style="background-color: blue; color: white;font-size: large;">BMS</button>
-    </a>
     <button onclick="clearData()">Clear Data</button> 
 <section class="layout_1x2">
     <div id="hv_voltage_chart" style="height: 370px; width:100%;"></div>
@@ -90,6 +87,12 @@
             <th>DischargeEnableInverted</th>
             <th><h4 class = "data" id ="bms_discharge_enable_inverted"></th>
         </tr>
+            <th>BMS SoC</th>
+            <th><h4 class = "data" id ="bms_soc"></th>
+            <th></th>
+            <th></th>
+        <tr>
+        </tr>
         </table>
     </div>
     <div>
@@ -114,6 +117,149 @@
         </table>
     </div>
 </section>
+  <table>
+    <caption>BMS Cell Voltage Data </caption>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_0"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_1"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_2"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_3"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_4"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_5"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_6"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_7"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_8"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_9"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_10"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_11"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_12"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_13"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_14"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_15"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_16"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_17"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_18"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_19"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_20"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_21"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_22"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_23"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_24"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_25"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_26"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_27"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_28"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_29"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_30"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_31"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_32"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_33"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_34"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_35"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_36"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_37"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_38"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_39"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_40"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_41"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_42"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_43"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_44"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_45"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_46"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_47"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_48"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_49"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_50"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_51"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_52"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_53"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_54"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_55"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_56"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_57"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_58"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_59"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_60"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_61"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_62"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_63"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_64"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_65"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_66"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_67"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_68"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_69"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_70"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_71"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_72"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_73"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_74"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_75"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_76"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_77"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_78"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_79"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_80"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_81"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_82"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_83"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_84"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_85"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_86"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_87"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_88"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_89"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_90"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_91"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_92"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_93"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_94"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_95"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_96"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_97"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_98"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_99"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_100"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_101"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_102"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_103"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_104"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_105"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_106"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_107"></h4></th>
+    </tr>
+    <tr>
+      <th><h4 class = "cell_voltage" id="CELL_108"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_109"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_110"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_111"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_112"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_113"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_114"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_115"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_116"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_117"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_118"></h4></th>
+      <th><h4 class = "cell_voltage" id="CELL_119"></h4></th>
+    </tr>
+  </table>
 
 
     <script src="main.js"></script>

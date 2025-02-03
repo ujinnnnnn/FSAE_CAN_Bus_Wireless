@@ -1,18 +1,18 @@
-const ws = new WebSocket("ws://192.168.153.20:8000");
+const ws = new WebSocket("ws://192.168.48.20:8000");
 
 function clearData(){
   sessionStorage.clear();
   location.reload();
 }
 
-function graphNewdata(this_chart,this_dataset,dataAsString){
-  var x =  Math.round(((new Date()).getTime() - series_data["epoch"])/100),y = parseFloat(dataAsString)
+function graphNewdata(this_chart,this_dataset,dataAsString,timeMS){
+  var x =  parseInt(timeMS) ,y = parseFloat(dataAsString)
   series_data[this_dataset].push({
     x : x,
     y: y
   });
 
-  if (series_data[this_dataset].length > 100){
+  if (series_data[this_dataset].length > 20){
     series_data[this_dataset].shift();
   }
   this_chart.render();
@@ -95,14 +95,16 @@ ws.onmessage = (event) => {
   while (document.readyState != "complete");
   for (const key in data){
     switch (key){
+      case "time_ms":
+        break;
       case "inv_temp":
-        graphNewdata(temperature_chart,"inv_temp",data[key]);
+        graphNewdata(temperature_chart,"inv_temp",data[key],data["time_ms"]);
         break;
       case "motor_temp":
-        graphNewdata(temperature_chart,"motor_temp",data[key]);
+        graphNewdata(temperature_chart,"motor_temp",data[key],data["time_ms"]);
         break;
       case "inv_voltage":
-        graphNewdata(hv_voltage_chart,"inv_voltage",data[key]);
+        graphNewdata(hv_voltage_chart,"inv_voltage",data[key],data["time_ms"]);
         break;
       case "inv_foc_id":
         document.getElementById("inv_foc_id").innerHTML = data[key];
@@ -161,6 +163,7 @@ ws.onmessage = (event) => {
       case "bms_open_voltage":
         break;
       case "bms_soc":
+        document.getElementById("bms_soc").innerHTML = data[key] + "%";
         break;
       case "bms_pack_current":
         break;
@@ -219,6 +222,11 @@ ws.onmessage = (event) => {
         break;
 
       default:
+        if (key.includes("CELL")){
+          document.getElementById(key).innerHTML = data[key] + " V";
+        }else if (key.includes("THERMISTOR")){
+          document.getElementById(key).innerHTML = data[key]; 
+        }
         console.log(key);
     }
   }

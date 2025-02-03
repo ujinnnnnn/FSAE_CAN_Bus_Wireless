@@ -1,5 +1,3 @@
-for (let i = 1; i < 11; i++) {
-  for (let j = 1; j < 13;j++){
-    document.getElementById("seg_".concat(i.toString(),"_cell_",j.toString())).innerHTML = 3.142.toString(10);
-  }
-} 
+for (let i = 0; i < 120; i++) {
+  document.getElementById("CELL_".concat(i.toString())).innerHTML = (3.68 + 0.05*Math.random()).toString(10);
+}
