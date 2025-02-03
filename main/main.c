@@ -126,14 +126,14 @@ static void usb_debug_task(void *arg){
 }
 */
 
+  // xTaskCreatePinnedToCore(LoRa_rx_check, "LoRa RX", 4096, NULL, LORA_RX_CHECK_PRIORITY, NULL, tskNO_AFFINITY);
 
 
 void app_main(void)
 {
   init();
-  // xTaskCreatePinnedToCore(LoRa_rx_check, "LoRa RX", 4096, NULL, LORA_RX_CHECK_PRIORITY, NULL, tskNO_AFFINITY);
 
-  if (xTaskCreatePinnedToCore(twai_receive_task, "TWAI_rx", 4096, NULL, TWAI_RECEIVE_PRIORITY, NULL, 0) != pdPASS) ESP_LOGE(TAG,"twai rx failed to create");
+  xTaskCreatePinnedToCore(twai_receive_task, "TWAI_rx", 4096, NULL, TWAI_RECEIVE_PRIORITY, NULL, 0);
 
   xTaskCreatePinnedToCore(LoRa_sender_task,"sender",4096,NULL,SENDER_PRIORITY,NULL,1);
 
@@ -141,11 +141,11 @@ void app_main(void)
   xTaskCreatePinnedToCore(slow_2_transmit_task, "slow 2 tx", 4096, NULL, LORA_SLOW_2_PRIORITY, NULL, 1);
 
   xTaskCreatePinnedToCore(fast_information_transmit_task, "fast info tx", 4096, NULL, LORA_FAST_INFORMATION_PRIORITY, NULL, 1);
-  // xTaskCreatePinnedToCore(fast_critical_transmit_task, "fast crit tx", 4096, NULL, LORA_FAST_CRITICAL_PRIORITY, NULL, 1);
+  xTaskCreatePinnedToCore(fast_critical_transmit_task, "fast crit tx", 4096, NULL, LORA_FAST_CRITICAL_PRIORITY, NULL, 1);
 
-  // xTaskCreatePinnedToCore(cell_voltage_transmit_task, "cell voltage tx", 4096, NULL, LORA_CELL_VOLTAGE_PRIORITY, NULL, 1);
-  // xTaskCreatePinnedToCore(thermistor_transmit_task, "thermisotr tx", 4096, NULL, LORA_THERMISTOR_PRIORITY, NULL, 1);
-
-  //xTaskCreatePinnedToCore(usb_debug_task, "usb debug",4096,NULL, 9,NULL,0);
+  xTaskCreatePinnedToCore(cell_voltage_transmit_task, "cell voltage tx", 4096, NULL, LORA_CELL_VOLTAGE_PRIORITY, NULL, 1);
+  xTaskCreatePinnedToCore(thermistor_transmit_task, "thermisotr tx", 4096, NULL, LORA_THERMISTOR_PRIORITY, NULL, 1);
 
 }
+
+  //xTaskCreatePinnedToCore(usb_debug_task, "usb debug",4096,NULL, 9,NULL,0);

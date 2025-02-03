@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include "string.h"
 
+#include <sys/time.h>
+
 #include "freertos/freertos.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -65,8 +67,7 @@ void LoRa_rx_check(void *arg)
   }
 }
 
-void
-LoRa_sender_task(void* arg)
+void LoRa_sender_task(void* arg)
 {
   static char lora_tx_buffer[256] = {0};
   lora_tx_buffer[0] = START_BYTE;
@@ -96,30 +97,39 @@ LoRa_sender_task(void* arg)
 void slow_1_transmit_task(void *arg)
 {
 #define DATA_BYTES 23
-  LoRa_message_t message = {.id = SLOW_1_ID,.length = DATA_BYTES + CRC_BYTES};
-
+  LoRa_message_t message = {.id = SLOW_1_ID,.length = DATA_BYTES + CRC_BYTES + TIME_BYTES};
+  struct timeval tv_now;
+  uint32_t timenow_ms;
   while (1)
   {
-    message.data = malloc(DATA_BYTES + CRC_BYTES);
-    if (message.data == NULL) ESP_LOGW(TAG,"slow 1 malloc failed");
-    memcpy((void *)&message.data[0], (void *)&Inv_data.inverter_temp, 2);
-    memcpy((void *)&message.data[2], (void *)&Inv_data.motor_temp, 2);
-    memcpy((void *)&message.data[4], (void *)&Inv_data.input_voltage, 2);
-    memcpy((void *)&message.data[4], (void *)&Inv_data.input_voltage, 2);
-    memcpy((void *)&message.data[6], (void *)&BMS_data.AverageCurrent, 2);
-    memcpy((void *)&message.data[8], (void *)&BMS_data.PackOpenVoltage, 2);
-    memcpy((void *)&message.data[10], (void *)&BMS_data.PackDCL, 2);
-    memcpy((void *)&message.data[12], (void *)&BMS_data.PackAbsCurrent, 2);
-    memcpy((void *)&message.data[14], (void *)&Plex_data.RadiatorIN, 2);
-    memcpy((void *)&message.data[16], (void *)&Plex_data.RadiatorOUT, 2);
-    memcpy((void *)&message.data[18], (void *)&Plex_data.vBat, 2);
-    memcpy((void *)&message.data[20], (void *)&BMS_data.PackSOC, 1);
-    memcpy((void *)&message.data[21], (void *)&BMS_data.HighTemperature, 1);
-    memcpy((void *)&message.data[22], (void *)&BMS_data.InternalTemperature, 1);
+    message.data = malloc(message.length);
+    if (message.data == NULL) {
+      ESP_LOGW(TAG,"slow 1 malloc failed");
+      continue;
+    }
 
-    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
-    memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
+    gettimeofday(&tv_now, NULL);
+    timenow_ms = tv_now.tv_sec * 1000 +  (tv_now.tv_usec/1000); 
 
+    memcpy((void *)&message.data[0], (void *)&timenow_ms,TIME_BYTES);
+
+    memcpy((void *)&message.data[TIME_BYTES + 0], (void *)&Inv_data.inverter_temp, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 2], (void *)&Inv_data.motor_temp, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 4], (void *)&Inv_data.input_voltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 4], (void *)&Inv_data.input_voltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 6], (void *)&BMS_data.AverageCurrent, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 8], (void *)&BMS_data.PackOpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 10], (void *)&BMS_data.PackDCL, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 12], (void *)&BMS_data.PackAbsCurrent, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 14], (void *)&Plex_data.RadiatorIN, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 16], (void *)&Plex_data.RadiatorOUT, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 18], (void *)&Plex_data.vBat, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 20], (void *)&BMS_data.PackSOC, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 21], (void *)&BMS_data.HighTemperature, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 22], (void *)&BMS_data.InternalTemperature, 1);
+
+    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES + TIME_BYTES);
+    memcpy((void*) &message.data[DATA_BYTES + TIME_BYTES],(void *) &crc,CRC_BYTES);
 
     xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS));
 
@@ -132,29 +142,39 @@ void slow_1_transmit_task(void *arg)
 void slow_2_transmit_task(void *arg)
 {
 #define DATA_BYTES 21
-  LoRa_message_t message = {.id = SLOW_2_ID,.length = DATA_BYTES + CRC_BYTES};
+  LoRa_message_t message = {.id = SLOW_2_ID,.length = DATA_BYTES + CRC_BYTES + TIME_BYTES};
+  struct timeval tv_now;
+  uint32_t timenow_ms;
 
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
-    message.data = malloc(DATA_BYTES + CRC_BYTES);
-    if (message.data == NULL) ESP_LOGW(TAG,"slow 2 malloc failed");
-    memcpy((void *)&message.data[0], (void *)&Inv_data.FOC_Id, 4);
-    memcpy((void *)&message.data[4], (void *)&Inv_data.FOC_Iq, 4);
-    memcpy((void *)&message.data[8], (void *)&Plex_data.GPS_Fix, 2);
-    memcpy((void *)&message.data[10], (void *)&Plex_data.CAN1_Load, 2);
-    memcpy((void *)&message.data[12], (void *)&Plex_data.CAN1_Errors, 2);
-    memcpy((void *)&message.data[14], (void *)&Inv_data.DigitalIO, 1);
-    memcpy((void *)&message.data[15], (void *)&Inv_data.DriveEN, 1);
-    memcpy((void *)&message.data[16], (void *)&Inv_data.CAN_MapVers, 1);
-    memcpy((void *)&message.data[17], (void *)&BMS_data.DTC_Flags_1, 1);
-    memcpy((void *)&message.data[18], (void *)&BMS_data.DTC_Flags_2, 1);
-    memcpy((void *)&message.data[19], (void *)&BMS_data.BalancingEnabled, 1);
-    memcpy((void *)&message.data[20], (void *)&BMS_data.DischargeEnableInverted, 1);
+    message.data = malloc(message.length);
+    if (message.data == NULL) {
+      ESP_LOGW(TAG,"slow 2 malloc failed");
+      continue;
+    }
 
-    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
-    memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
+    gettimeofday(&tv_now, NULL);
+    timenow_ms = tv_now.tv_sec * 1000 +  (tv_now.tv_usec/1000); 
+    memcpy((void *)&message.data[0], (void *)&timenow_ms,TIME_BYTES);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    memcpy((void *)&message.data[TIME_BYTES + 0], (void *)&Inv_data.FOC_Id, 4);
+    memcpy((void *)&message.data[TIME_BYTES + 4], (void *)&Inv_data.FOC_Iq, 4);
+    memcpy((void *)&message.data[TIME_BYTES + 8], (void *)&Plex_data.GPS_Fix, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 10], (void *)&Plex_data.CAN1_Load, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 12], (void *)&Plex_data.CAN1_Errors, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 14], (void *)&Inv_data.DigitalIO, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 15], (void *)&Inv_data.DriveEN, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 16], (void *)&Inv_data.CAN_MapVers, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 17], (void *)&BMS_data.DTC_Flags_1, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 18], (void *)&BMS_data.DTC_Flags_2, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 19], (void *)&BMS_data.BalancingEnabled, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 20], (void *)&BMS_data.DischargeEnableInverted, 1);
+
+    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES + TIME_BYTES);
+    memcpy((void*) &message.data[DATA_BYTES + TIME_BYTES],(void *) &crc,CRC_BYTES);
+
+    xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS));
 
     // ESP_LOGI(TAG,"slow 2 water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(SLOW_2_TRANSMIT_PERIOD_MS));
@@ -165,32 +185,41 @@ void slow_2_transmit_task(void *arg)
 void fast_critical_transmit_task(void *arg)
 {
 #define DATA_BYTES 24
-  LoRa_message_t message = {.id = FAST_CRITICAL_ID,.length = DATA_BYTES + CRC_BYTES};
-
+  LoRa_message_t message = {.id = FAST_CRITICAL_ID,.length = DATA_BYTES + CRC_BYTES + TIME_BYTES};
+  struct timeval tv_now;
+  uint32_t timenow_ms;
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
-    message.data = malloc(DATA_BYTES + CRC_BYTES);
-    if (message.data == NULL) ESP_LOGW(TAG,"fast crit malloc failed");
-    memcpy((void *)&message.data[0], (void *)&Inv_data.erpm, 4);
-    memcpy((void *)&message.data[4], (void *)&Inv_data.duty_cycle, 2);
-    memcpy((void *)&message.data[6], (void *)&Inv_data.ac_current, 2);
-    memcpy((void *)&message.data[8], (void *)&Inv_data.dc_current, 2);
-    memcpy((void *)&message.data[10], (void *)&Plex_data.Throttle_1, 2);
-    memcpy((void *)&message.data[12], (void *)&Plex_data.Throttle_2, 2);
-    memcpy((void *)&message.data[14], (void *)&Plex_data.Brake, 2);
-    memcpy((void *)&message.data[16], (void *)&BMS_data.HighOpenCellVoltage, 1);
-    memcpy((void *)&message.data[17], (void *)&BMS_data.LowOpenCellVoltage, 1);
-    memcpy((void *)&message.data[18], (void *)&BMS_data.HighOpenCellID, 1);
-    memcpy((void *)&message.data[19], (void *)&BMS_data.LowOpenCellID, 1);
-    memcpy((void *)&message.data[20], (void *)&Inv_data.throttle_in, 1);
-    memcpy((void *)&message.data[21], (void *)&Inv_data.ActiveLimitsByte4, 1);
-    memcpy((void *)&message.data[22], (void *)&Inv_data.ActiveLimitsByte5, 1);
-    memcpy((void *)&message.data[23], (void *)&Inv_data.FAULT_CODE, 1);
+    message.data = malloc(message.length);
+    if (message.data == NULL) {
+      ESP_LOGW(TAG,"fast crit malloc failed");
+      continue;
+    }
+    gettimeofday(&tv_now, NULL);
+    timenow_ms = tv_now.tv_sec * 1000 +  (tv_now.tv_usec/1000); 
 
-    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
-    memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
+    memcpy((void *)&message.data[0], (void *)&timenow_ms,TIME_BYTES);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    memcpy((void *)&message.data[TIME_BYTES + 0], (void *)&Inv_data.erpm, 4);
+    memcpy((void *)&message.data[TIME_BYTES + 4], (void *)&Inv_data.duty_cycle, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 6], (void *)&Inv_data.ac_current, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 8], (void *)&Inv_data.dc_current, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 10], (void *)&Plex_data.Throttle_1, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 12], (void *)&Plex_data.Throttle_2, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 14], (void *)&Plex_data.Brake, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 16], (void *)&BMS_data.HighOpenCellVoltage, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 17], (void *)&BMS_data.LowOpenCellVoltage, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 18], (void *)&BMS_data.HighOpenCellID, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 19], (void *)&BMS_data.LowOpenCellID, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 20], (void *)&Inv_data.throttle_in, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 21], (void *)&Inv_data.ActiveLimitsByte4, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 22], (void *)&Inv_data.ActiveLimitsByte5, 1);
+    memcpy((void *)&message.data[TIME_BYTES + 23], (void *)&Inv_data.FAULT_CODE, 1);
+
+    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES + TIME_BYTES);
+    memcpy((void*) &message.data[DATA_BYTES + TIME_BYTES],(void *) &crc,CRC_BYTES);
+
+    xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS));
 
     // ESP_LOGI(TAG,"fast crit water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(FAST_CRITICAL_TRANSMIT_PERIOD_MS));
@@ -204,24 +233,35 @@ void fast_critical_transmit_task(void *arg)
 void fast_information_transmit_task(void *arg)
 {
 #define DATA_BYTES 14
-  LoRa_message_t message = {.id = FAST_INFORMATION_ID ,.length = DATA_BYTES + CRC_BYTES};
+  LoRa_message_t message = {.id = FAST_INFORMATION_ID ,.length = DATA_BYTES + CRC_BYTES + TIME_BYTES};
+  struct timeval tv_now;
+  uint32_t timenow_ms;
 
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
-    message.data = malloc(DATA_BYTES + CRC_BYTES);
-    if (message.data == NULL) ESP_LOGW(TAG,"fast info malloc failed");
-    memcpy((void *)&message.data[0], (void *)&BMS_data.PackCurrent, 2);
-    memcpy((void *)&message.data[2], (void *)&Plex_data.accLong, 2);
-    memcpy((void *)&message.data[4], (void *)&Plex_data.accLat, 2);
-    memcpy((void *)&message.data[6], (void *)&Plex_data.accVert, 2);
-    memcpy((void *)&message.data[8], (void *)&Plex_data.yawRate, 2);
-    memcpy((void *)&message.data[10], (void *)&Plex_data.Pitch, 2);
-    memcpy((void *)&message.data[12], (void *)&Plex_data.Roll, 2);
+    message.data = malloc(message.length);
+    if (message.data == NULL) {
+      ESP_LOGW(TAG,"fast info malloc failed");
+      continue;
+    }
 
-    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
-    memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
+    gettimeofday(&tv_now, NULL);
+    timenow_ms = tv_now.tv_sec * 1000 +  (tv_now.tv_usec/1000); 
 
-    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    memcpy((void *)&message.data[0], (void *)&timenow_ms,TIME_BYTES);
+
+    memcpy((void *)&message.data[TIME_BYTES + 0], (void *)&BMS_data.PackCurrent, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 2], (void *)&Plex_data.accLong, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 4], (void *)&Plex_data.accLat, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 6], (void *)&Plex_data.accVert, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 8], (void *)&Plex_data.yawRate, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 10], (void *)&Plex_data.Pitch, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 12], (void *)&Plex_data.Roll, 2);
+
+    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES + TIME_BYTES); 
+    memcpy((void*) &message.data[DATA_BYTES + TIME_BYTES],(void *) &crc,CRC_BYTES);
+
+    xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS));
 
     // ESP_LOGI(TAG,"fast info water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(FAST_INFORMATION_TRANSMIT_PERIOD_MS));
@@ -232,36 +272,46 @@ void fast_information_transmit_task(void *arg)
 void cell_voltage_transmit_task(void *arg)
 {
 #define DATA_BYTES 24
-  LoRa_message_t message = {.length = DATA_BYTES + CRC_BYTES};
+  LoRa_message_t message = {.length = DATA_BYTES + CRC_BYTES + TIME_BYTES};
+  struct timeval tv_now;
+  uint32_t timenow_ms;
 
   uint8_t segment_id = 0;
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
     message.id = 0xF0 | segment_id;
 
-    message.data = malloc(DATA_BYTES + CRC_BYTES);
-    if (message.data == NULL) ESP_LOGW(TAG,"cell malloc failed");
-    memcpy((void *)&message.data[0], (void *)&Cell_data[segment_id + 0].OpenVoltage, 2);
-    memcpy((void *)&message.data[2], (void *)&Cell_data[segment_id + 1].OpenVoltage, 2);
-    memcpy((void *)&message.data[4], (void *)&Cell_data[segment_id + 2].OpenVoltage, 2);
-    memcpy((void *)&message.data[6], (void *)&Cell_data[segment_id + 3].OpenVoltage, 2);
-    memcpy((void *)&message.data[8], (void *)&Cell_data[segment_id + 4].OpenVoltage, 2);
-    memcpy((void *)&message.data[10], (void *)&Cell_data[segment_id + 5].OpenVoltage, 2);
-    memcpy((void *)&message.data[12], (void *)&Cell_data[segment_id + 6].OpenVoltage, 2);
-    memcpy((void *)&message.data[14], (void *)&Cell_data[segment_id + 7].OpenVoltage, 2);
-    memcpy((void *)&message.data[16], (void *)&Cell_data[segment_id + 8].OpenVoltage, 2);
-    memcpy((void *)&message.data[18], (void *)&Cell_data[segment_id + 9].OpenVoltage, 2);
-    memcpy((void *)&message.data[20], (void *)&Cell_data[segment_id + 10].OpenVoltage, 2);
-    memcpy((void *)&message.data[22], (void *)&Cell_data[segment_id + 11].OpenVoltage, 2);
+    message.data = malloc(message.length);
+    if (message.data == NULL) {
+      ESP_LOGW(TAG,"cell voltage malloc failed");
+      continue;
+    }
 
-    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
-    memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
+    gettimeofday(&tv_now, NULL);
+    timenow_ms = tv_now.tv_sec * 1000 +  (tv_now.tv_usec/1000); 
+
+    memcpy((void *)&message.data[0], (void *)&timenow_ms,TIME_BYTES);
+    memcpy((void *)&message.data[TIME_BYTES + 0], (void *)&Cell_data[segment_id + 0].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 2], (void *)&Cell_data[segment_id + 1].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 4], (void *)&Cell_data[segment_id + 2].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 6], (void *)&Cell_data[segment_id + 3].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 8], (void *)&Cell_data[segment_id + 4].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 10], (void *)&Cell_data[segment_id + 5].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 12], (void *)&Cell_data[segment_id + 6].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 14], (void *)&Cell_data[segment_id + 7].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 16], (void *)&Cell_data[segment_id + 8].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 18], (void *)&Cell_data[segment_id + 9].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 20], (void *)&Cell_data[segment_id + 10].OpenVoltage, 2);
+    memcpy((void *)&message.data[TIME_BYTES + 22], (void *)&Cell_data[segment_id + 11].OpenVoltage, 2);
+
+    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES + TIME_BYTES);
+    memcpy((void*) &message.data[DATA_BYTES + TIME_BYTES],(void *) &crc,CRC_BYTES);
 
     segment_id = (segment_id + 1) % 10;
 
-    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS));
 
-    ESP_LOGI(TAG,"cell voltage water mark %d",uxTaskGetStackHighWaterMark(NULL));
+    // ESP_LOGI(TAG,"cell voltage water mark %d",uxTaskGetStackHighWaterMark(NULL));
     vTaskDelay(pdMS_TO_TICKS(CELL_VOLTAGE_TRANSMIT_PERIOD_MS));
 #undef DATA_BYTES
   }
@@ -271,34 +321,47 @@ void cell_voltage_transmit_task(void *arg)
 void thermistor_transmit_task(void *arg)
 {
 #define DATA_BYTES 8
-  LoRa_message_t message = {.length = DATA_BYTES + CRC_BYTES};
+  LoRa_message_t message = {.length = DATA_BYTES + CRC_BYTES + TIME_BYTES};
+  struct timeval tv_now;
+  uint32_t timenow_ms;
 
   uint8_t thermsitor_group_id = 0;
 
   while (uxSemaphoreGetCount(transmit_sem) == 1)
   {
-    message.data = malloc(DATA_BYTES + CRC_BYTES);
-    if (message.data == NULL) ESP_LOGW(TAG,"thermistor malloc failed");
+    message.data = malloc(message.length);
+    if (message.data == NULL) {
+      ESP_LOGW(TAG,"thermistor malloc failed");
+      continue;
+    }
+
+    gettimeofday(&tv_now, NULL);
+    timenow_ms = tv_now.tv_sec * 1000 +  (tv_now.tv_usec/1000); 
+
     message.id = 0xE0 | thermsitor_group_id;
 
-    memcpy((void *)&message.data[0], (void *)&Thermistor_data[thermsitor_group_id + 0], 1);
-    memcpy((void *)&message.data[1], (void *)&Thermistor_data[thermsitor_group_id + 1], 1);
-    memcpy((void *)&message.data[2], (void *)&Thermistor_data[thermsitor_group_id + 2], 1);
-    memcpy((void *)&message.data[3], (void *)&Thermistor_data[thermsitor_group_id + 3], 1);
-    memcpy((void *)&message.data[4], (void *)&Thermistor_data[thermsitor_group_id + 4], 1);
-    memcpy((void *)&message.data[5], (void *)&Thermistor_data[thermsitor_group_id + 5], 1);
-    memcpy((void *)&message.data[6], (void *)&Thermistor_data[thermsitor_group_id + 6], 1);
-    memcpy((void *)&message.data[7], (void *)&Thermistor_data[thermsitor_group_id + 7], 1);
+    memcpy((void *)&message.data[0], (void *)&timenow_ms,TIME_BYTES);
 
-    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES);
-    memcpy((void*) &message.data[DATA_BYTES],(void *) &crc,CRC_BYTES);
+    memcpy((void *)&message.data[TIME_BYTES + 0], (void *)&Thermistor_data[thermsitor_group_id + 0], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 1], (void *)&Thermistor_data[thermsitor_group_id + 1], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 2], (void *)&Thermistor_data[thermsitor_group_id + 2], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 3], (void *)&Thermistor_data[thermsitor_group_id + 3], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 4], (void *)&Thermistor_data[thermsitor_group_id + 4], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 5], (void *)&Thermistor_data[thermsitor_group_id + 5], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 6], (void *)&Thermistor_data[thermsitor_group_id + 6], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 7], (void *)&Thermistor_data[thermsitor_group_id + 7], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 8], (void *)&Thermistor_data[thermsitor_group_id + 8], 1);
+    memcpy((void *)&message.data[TIME_BYTES + 9], (void *)&Thermistor_data[thermsitor_group_id + 9], 1);
 
-    while (xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS)) == pdFALSE) ESP_LOGW(TAG,"queue full");
+    uint16_t crc = crc_16((unsigned char *) message.data,DATA_BYTES + TIME_BYTES);
+    memcpy((void*) &message.data[DATA_BYTES + TIME_BYTES],(void *) &crc,CRC_BYTES);
 
-    thermsitor_group_id = (thermsitor_group_id + 1) % 10;
+    xQueueSend(LoRa_TX_Queue,&message,pdMS_TO_TICKS(QUEUE_SEND_BACKOFF_MS));
 
-    ESP_LOGI(TAG,"thermistor water mark %d",uxTaskGetStackHighWaterMark(NULL));
-    vTaskDelay(pdMS_TO_TICKS(CELL_VOLTAGE_TRANSMIT_PERIOD_MS));
+    thermsitor_group_id = (thermsitor_group_id + 1) % 8;
+
+    // ESP_LOGI(TAG,"thermistor water mark %d",uxTaskGetStackHighWaterMark(NULL));
+    vTaskDelay(pdMS_TO_TICKS(THERMISTOR_TRANSMIT_PERIOD_MS));
 #undef DATA_BYTES
   }
 }
