@@ -98,14 +98,6 @@ class camhandler(http.server.BaseHTTPRequestHandler):
             with sfp.open('r') as sfile:
                 xs=sfile.read()
                 self.simpleSend(xs)
-        elif pf[-1] == 'bms.js':
-            sfp=Path('bms.js')
-            with sfp.open('rb') as sfile:
-                xs=sfile.read()
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/javascript')
-            self.end_headers()
-            self.wfile.write(xs)
         elif pf[-1] == 'main.js':
             sfp=Path('canvasJS/main.js')
             with sfp.open('rb') as sfile:
@@ -218,61 +210,22 @@ def SerialReaderThread():
         
     
 
-def SerialParser(serial_port):
-    epoch = int(time.time_ns() / 1000)
-    while (True):
-        data = {
-            "time_ms" : str(int(time.time_ns() / 1000) - epoch),
-            "inv_temp" : str(26 ),
-            "motor_temp" : str(28),
-            "inv_voltage" : str(468),
-            "inv_foc_id" : str(0.0),
-            "inv_foc_iq" : str(0.0),
-            "inv_drive_en" : str(0),
-            "inv_can_map_vers" : str(23),
-            "inv_digital_io" : str(0),
-            "inv_limits_4" : str(32),
-            "inv_limits_5" : str(0),
-            "inv_fault_code" : str(2),
-            "bms_high_open_voltage" : str(0),
-            "bms_low_open_voltage" : str(0),
-            "bms_high_open_id" : str(0),
-            "bms_low_open_id" : str(0),
-            "bms_pack_dcl" : str(0),
-            "bms_pack_abs_current" : str(0),
-            "bms_soc" : str(0),
-            "bms_internal_temperature" : str(0),
-            "bms_dtc_flags_1" : str(0),
-            "bms_dtc_flags_2" : str(0),
-            "bms_balancing_enabled" : str(0),
-            "bms_discharge_enable_inverted" : str(0),
-            "plex_battery_voltage" : str(10.191),
-            "plex_gps_fix" : str(0),
-            "plex_can1_load" : str(18),
-            "plex_can1_errors" : str(0),
-        }
-        for i in range(0,120):
-            data[f"CELL_{i}"] = str(round(3.78 + random.uniform(-0.02,0.02),2))
-        # print(json.dumps(data))
-        broadcast(CONNECTIONS,json.dumps(data))
-        time.sleep(1)
-
+def SerialParser():
     while (True):
         data_buffer = bytearray()
         while (True):
             try:
-                char = BUFFER.pop(0)    
+                char = BUFFER.pop(0)  # check if UART buffer is empty
             except:
                 continue
             try:
-                if (char == 0x24):
+                if (char == 0x24): # found start byte
                     break
             except IndexError:
                 print("serial timeout start")
             except Exception as e:
                 print(repr(e))
-
-        while (True):
+        while (True): # fill data buffer with data until end byte is found
             try:
                 char = BUFFER.pop(0)    
             except:
@@ -281,23 +234,19 @@ def SerialParser(serial_port):
                 break
             else:
                 data_buffer.append(char)
+        try: # extract message id and decode base64 to binary
+            packet_id = struct.unpack_from("B",data_buffer,0)[0]
 
-        try:
-            print("".join([f"{byte:02x} " for byte in data_buffer]), flush = True)
-            message_id = struct.unpack_from("B",data_buffer,0)[0]
-            # print(hex(message_id))
             buffer = base64.b64decode(data_buffer[1:])
-            # print(len(buffer))
-            # print(buffer)
         except Exception as e:
             print("data buffer\n","".join([f"{byte:02x} " for byte in data_buffer]), flush = True)
             print(f"sliced length : {len(data_buffer[1:])}")
             continue
 
-        if ((message_id >> 4) == 0xF): # Cell Voltage Message
-            segment_id = message_id & 0x0F 
+        if ((packet_id >> 4) == 0xF): # Cell Voltage Message
+            segment_id = packet_id & 0x0F 
             if (len(buffer) < struct.calcsize("IHHHHHHHHHHHH")):
-                print("insufficient data",hex(message_id))
+                print("insufficient data",hex(packet_id))
                 continue
             data_tuple = struct.unpack_from("IHHHHHHHHHHHH",buffer)
             for cell in range(12):
@@ -319,8 +268,8 @@ def SerialParser(serial_port):
                 f"CELL_{segment_id * 12 + 11}" : str(int(data_tuple[12])/10),
             }
             broadcast(CONNECTIONS,json.dumps(data))
-        elif ((message_id >> 4) == 0xE): # thermistor message
-            thermistor_id_tens = message_id & 0x0F
+        elif ((packet_id >> 4) == 0xE): # thermistor message
+            thermistor_id_tens = packet_id & 0x0F
             if (len(buffer) < struct.calcsize("Ibbbbbbbbbb")):
                 print("insufficient data",hex(mesage_id))
                 continue
@@ -343,12 +292,37 @@ def SerialParser(serial_port):
             }
             broadcast(CONNECTIONS,json.dumps(data))
         else:
-            match message_id:
+            match packet_id:
+                case 0x91: # fast info 
+                    if (len(buffer) < struct.calcsize("Ihhhhhhh")):
+                        print("insufficient data",hex(packet_id))
+                        continue
+                    data_tuple = struct.unpack_from("Ihhhhhhh",buffer)
+                    bms.PackCurrent = data_tuple[1]
+                    plex.accLong = data_tuple[2] / 1000
+                    plex.accLat = data_tuple[3] / 1000
+                    plex.accVert = data_tuple[4] / 1000
+                    plex.yawRate = data_tuple[5] / 10
+                    plex.Pitch = data_tuple[6] / 10
+                    plex.Roll = data_tuple[7] / 10
+
+                    data = {
+                        "time_ms" : str(data_tuple[0]),
+                        "bms_pack_current" : str(bms.PackCurrent),
+                        "plex_acc_long" : str(plex.accLong),
+                        "plex_acc_lat" : str(plex.accLat),
+                        "plex_acc_vert" : str(plex.accVert),
+                        "plex_yaw_rate" : str(plex.yawRate),
+                        "plex_pitch" : str(plex.Pitch),
+                        "plex_roll" : str(plex.Roll)
+                    }
+                    broadcast(CONNECTIONS,json.dumps(data))
                 case 0x90: # fast critical 
                     if (len(buffer) < struct.calcsize("IihhhhhhBBBBbBBB")):
-                        print("mismatch data length",hex(message_id))
+                        print("mismatch data length",hex(packet_id))
                         print("expected", struct.calcsize("IihhhhhhBBBBbBBB"), "got " ,{len(buffer)},"".join([f"{byte:02x} " for byte in buffer]))
                         continue
+
                     data_tuple = struct.unpack_from("IihhhhhhBBBBbBBB",buffer)
                     dti.erpm = data_tuple[1]
                     dti.duty_cycle = data_tuple[2] / 10
@@ -385,33 +359,9 @@ def SerialParser(serial_port):
                         "inv_fault_code" : str(dti.FAULT_CODE)                           
                     }
                     broadcast(CONNECTIONS,json.dumps(data))
-                case 0x91: # fast info 
-                    if (len(buffer) < struct.calcsize("Ihhhhhhh")):
-                        print("insufficient data",hex(message_id))
-                        continue
-                    data_tuple = struct.unpack_from("Ihhhhhhh",buffer)
-                    bms.PackCurrent = data_tuple[1]
-                    plex.accLong = data_tuple[2] / 1000
-                    plex.accLat = data_tuple[3] / 1000
-                    plex.accVert = data_tuple[4] / 1000
-                    plex.yawRate = data_tuple[5] / 10
-                    plex.Pitch = data_tuple[6] / 10
-                    plex.Roll = data_tuple[7] / 10
-
-                    data = {
-                        "time_ms" : str(data_tuple[0]),
-                        "bms_pack_current" : str(bms.PackCurrent),
-                        "plex_acc_long" : str(plex.accLong),
-                        "plex_acc_lat" : str(plex.accLat),
-                        "plex_acc_vert" : str(plex.accVert),
-                        "plex_yaw_rate" : str(plex.yawRate),
-                        "plex_pitch" : str(plex.Pitch),
-                        "plex_roll" : str(plex.Roll)
-                    }
-                    broadcast(CONNECTIONS,json.dumps(data))
                 case 0x80: # slow 1
                     if (len(buffer) < struct.calcsize("IhhhhHHHHHhBbb")):
-                        print("insufficient data",hex(message_id))
+                        print("insufficient data",hex(packet_id))
                         continue
                     data_tuple = struct.unpack_from("IhhhhHHHHHhBbb",buffer)
 
@@ -448,7 +398,7 @@ def SerialParser(serial_port):
                     broadcast(CONNECTIONS,json.dumps(data))
                 case 0x81: # slow 2
                     if (len(buffer) < struct.calcsize("IiiHHHBBBBB??")):
-                        print("insufficient data",hex(message_id))
+                        print("insufficient data",hex(packet_id))
                         continue
                     data_tuple = struct.unpack_from("IiiHHHBBBBB??",buffer)
                     dti.FOC_Id = data_tuple[1] / 100
@@ -480,24 +430,7 @@ def SerialParser(serial_port):
                     }
                     broadcast(CONNECTIONS,json.dumps(data))
                 case _:
-                    print("unknown message_id", hex(message_id), flush = True)
-        # else:
-        #     continue
-        #     dti.inverter_temp = random.randint(35,39)
-        #     dti.motor_temp = random.randint(45,50)
-        #     bms.InternalTemperature = random.randint(26,30)
-
-        #     bms.PackOpenVoltage = 476 + random.randint(-2,2)
-        #     dti.input_voltage = 476 + random.randint(-2,2)
-        #     data = {
-        #         "inv_voltage" : str(dti.input_voltage),
-        #         "bms_open_voltage" : str(bms.PackOpenVoltage),
-        #         "inv_temp" : str(dti.inverter_temp),
-        #         "motor_temp" : str(dti.motor_temp),
-        #         "bms_internal_temperature" : str(bms.InternalTemperature)
-        #     }
-        #     broadcast(CONNECTIONS,json.dumps(data))
-        #     time.sleep(0.1)
+                    print("unknown packet_id", hex(packet_id), flush = True)
 
 if __name__ == "__main__":
     httpServerThread = Thread(target=HTTPserverThread,args=[DEFWEBPORT])
@@ -506,6 +439,6 @@ if __name__ == "__main__":
     serial_reader = Thread(target=SerialReaderThread)
     serial_reader.start()
 
-    serialParserThread= Thread(target=SerialParser,args=["/dev/ttyAMA0"])
+    serialParserThread= Thread(target=SerialParser)
     serialParserThread.start()
     asyncio.run(main())
